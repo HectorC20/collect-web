@@ -1,0 +1,120 @@
+<section class="bracket-container">
+  <app-page-header
+    eyebrow="Sistema"
+    title="Gestión de Tramos"
+    description="Administra los rangos de mora usados por el módulo de cobranzas."
+  ></app-page-header>
+
+  <section class="search-card">
+    <form [formGroup]="searchForm" (ngSubmit)="search()">
+      <label for="search">Buscar</label>
+      <div class="search-actions">
+        <input id="search" type="text" formControlName="search" placeholder="Nombre, color o rango de días" />
+        <button type="submit" class="btn btn-primary">Filtrar</button>
+        <button type="button" class="btn btn-ghost" (click)="resetSearch()">Limpiar</button>
+      </div>
+    </form>
+  </section>
+
+  <section class="content-grid">
+    <article class="form-card">
+      <h2>{{ isEditing() ? 'Editar tramo' : 'Crear tramo' }}</h2>
+
+      <div *ngIf="feedback" class="alert alert-success">{{ feedback }}</div>
+      <div *ngIf="error" class="alert alert-error">{{ error }}</div>
+
+      <form [formGroup]="bracketForm" (ngSubmit)="save()" class="bracket-form">
+        <label for="name">Nombre *</label>
+        <input id="name" type="text" formControlName="name" placeholder="Ejemplo: Preventiva, Crítica" />
+        <div class="field-error" *ngIf="getFieldError('name') as fieldError">{{ fieldError }}</div>
+
+        <label for="min_days">Días mínimos *</label>
+        <input id="min_days" type="number" formControlName="min_days" min="0" />
+        <div class="field-error" *ngIf="getFieldError('min_days') as fieldError">{{ fieldError }}</div>
+
+        <label for="max_days">Días máximos *</label>
+        <input id="max_days" type="number" formControlName="max_days" min="1" />
+        <div class="field-error" *ngIf="getFieldError('max_days') as fieldError">{{ fieldError }}</div>
+
+        <label for="color">Color</label>
+        <div class="color-input-group">
+          <input type="color" formControlName="color" class="color-picker" title="Seleccionar color" />
+          <input id="color" type="text" formControlName="color" placeholder="#2563eb" />
+        </div>
+        <div class="field-error" *ngIf="getFieldError('color') as fieldError">{{ fieldError }}</div>
+
+        <div class="checkbox-row">
+          <input id="is_default" type="checkbox" formControlName="is_default" />
+          <label for="is_default">Tramo por defecto</label>
+        </div>
+
+        <div class="checkbox-row">
+          <input id="is_active" type="checkbox" formControlName="is_active" />
+          <label for="is_active">Tramo activo</label>
+        </div>
+
+        <div class="form-actions">
+          <button type="submit" class="btn btn-primary" [disabled]="saving">
+            {{ saving ? 'Guardando...' : (isEditing() ? 'Guardar cambios' : 'Crear tramo') }}
+          </button>
+          <button type="button" class="btn btn-ghost" (click)="startCreate()">Cancelar</button>
+        </div>
+      </form>
+    </article>
+
+    <article class="table-card">
+      <h2>Listado de tramos</h2>
+
+      <app-page-loader [show]="loading" message="Cargando tramos..."></app-page-loader>
+      <div *ngIf="!loading && brackets.length === 0" class="state">No hay tramos registrados.</div>
+
+      <div class="table-wrapper" *ngIf="!loading && brackets.length > 0">
+        <table>
+          <thead>
+            <tr>
+              <th>Nombre</th>
+              <th>Rango</th>
+              <th>Color</th>
+              <th>Por defecto</th>
+              <th>Estado</th>
+              <th>Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let bracket of brackets; trackBy: trackById">
+              <td>{{ bracket.name }}</td>
+              <td>{{ bracket.min_days }} - {{ bracket.max_days }} días</td>
+              <td>
+                <div class="color-cell">
+                  <span class="color-preview" [style.background]="bracket.color || '#94a3b8'"></span>
+                  <span>{{ bracket.color || '-' }}</span>
+                </div>
+              </td>
+              <td>
+                <span class="status-badge" [class.default]="bracket.is_default">
+                  {{ bracket.is_default ? 'Sí' : 'No' }}
+                </span>
+              </td>
+              <td>
+                <span class="status-badge" [class.active]="bracket.is_active" [class.inactive]="!bracket.is_active">
+                  {{ bracket.is_active ? 'Activo' : 'Inactivo' }}
+                </span>
+              </td>
+              <td class="actions">
+                <button type="button" class="btn btn-small btn-secondary" (click)="edit(bracket)">Editar</button>
+                <button
+                  type="button"
+                  class="btn btn-small btn-danger"
+                  [disabled]="deletingId === bracket.id"
+                  (click)="remove(bracket)"
+                >
+                  {{ deletingId === bracket.id ? 'Eliminando...' : 'Eliminar' }}
+                </button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </article>
+  </section>
+</section>

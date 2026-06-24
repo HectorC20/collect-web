@@ -1,0 +1,164 @@
+<section class="users-container">
+  <app-page-header
+    eyebrow="Sistema"
+    title="Gestión de Usuarios"
+    description="Administra cuentas de usuarios del sistema."
+  ></app-page-header>
+
+  <section class="search-card">
+    <form [formGroup]="searchForm" (ngSubmit)="search()">
+      <label for="search">Buscar</label>
+      <div class="search-actions">
+        <input id="search" type="text" formControlName="search" placeholder="Nombre, correo o DNI" />
+        <button type="submit" class="btn btn-primary">Filtrar</button>
+        <button type="button" class="btn btn-ghost" (click)="resetSearch()">Limpiar</button>
+      </div>
+    </form>
+  </section>
+
+  <section class="content-grid">
+    <article class="form-card">
+      <h2>{{ isEditing() ? 'Editar usuario' : 'Crear usuario' }}</h2>
+
+      <div *ngIf="feedback" class="alert alert-success">{{ feedback }}</div>
+      <div *ngIf="error" class="alert alert-error">{{ error }}</div>
+
+      <form [formGroup]="userForm" (ngSubmit)="save()" class="user-form">
+        <label for="roleId">Rol *</label>
+        <select id="roleId" formControlName="roleId">
+          <option value="">Seleccionar rol</option>
+          @for (role of roles; track role.id) {
+            <option [value]="role.id">{{ getRoleLabel(role.name) }}</option>
+          }
+        </select>
+
+        <div class="collector-config" *ngIf="isCollectorRoleSelected">
+          <div class="collector-config__header">
+            <strong>Acceso de cartera</strong>
+            <span>Define si el cobrador verá toda la cartera o solo los tramos asignados.</span>
+          </div>
+
+          <div class="scope-grid">
+            @for (option of collectorAccessOptions; track option.value) {
+              <label class="scope-option">
+                <input type="radio" formControlName="portfolio_access_scope" [value]="option.value" />
+                <div>
+                  <strong>{{ option.label }}</strong>
+                  <span *ngIf="option.value === 'assigned_brackets'">Filtra la cartera general por los tramos marcados.</span>
+                  <span *ngIf="option.value === 'all_clients'">Permite revisar todos los clientes disponibles.</span>
+                </div>
+              </label>
+            }
+          </div>
+
+          <div class="bracket-selector" *ngIf="userForm.value.portfolio_access_scope === 'assigned_brackets'">
+            <div class="bracket-selector__header">
+              <strong>Tramos permitidos</strong>
+              <span *ngIf="loadingBrackets">Cargando tramos...</span>
+              <span *ngIf="!loadingBrackets">Selecciona los tramos que podrá revisar el cobrador.</span>
+            </div>
+
+            <div class="bracket-list" *ngIf="!loadingBrackets && brackets.length > 0; else noBrackets">
+              @for (bracket of brackets; track trackById($index, bracket)) {
+                <label class="bracket-option">
+                  <input
+                    type="checkbox"
+                    [checked]="isBracketSelected(bracket.id)"
+                    (change)="toggleBracket(bracket.id, $any($event.target).checked)"
+                  />
+                  <span class="bracket-dot" [style.background]="bracket.color || '#94a3b8'"></span>
+                  <span>{{ bracket.name }}</span>
+                </label>
+              }
+            </div>
+
+            <ng-template #noBrackets>
+              <div class="helper-state">No hay tramos activos para asignar.</div>
+            </ng-template>
+          </div>
+        </div>
+
+        <label for="full_name">Nombre completo *</label>
+        <input id="full_name" type="text" formControlName="full_name" />
+
+        <label for="email">Correo electrónico *</label>
+        <input id="email" type="email" formControlName="email" />
+
+        <label for="password">
+          Contraseña {{ passwordRequired ? '*' : '(opcional)' }}
+        </label>
+        <input id="password" type="password" formControlName="password" />
+
+        <label for="dni">DNI</label>
+        <input id="dni" type="text" formControlName="dni" />
+
+        <label for="phone">Teléfono</label>
+        <input id="phone" type="text" formControlName="phone" />
+
+        <div class="checkbox-row">
+          <input id="is_active" type="checkbox" formControlName="is_active" />
+          <label for="is_active">Usuario activo</label>
+        </div>
+
+        <div class="form-actions">
+          <button type="submit" class="btn btn-primary" [disabled]="saving">
+            {{ saving ? 'Guardando...' : (isEditing() ? 'Guardar cambios' : 'Crear usuario') }}
+          </button>
+          <button type="button" class="btn btn-ghost" (click)="startCreate()">Cancelar</button>
+        </div>
+      </form>
+    </article>
+
+    <article class="table-card">
+      <h2>Listado de usuarios</h2>
+
+      <app-page-loader [show]="loading" message="Cargando usuarios..."></app-page-loader>
+      <div *ngIf="!loading && users.length === 0" class="state">No hay usuarios registrados.</div>
+
+      <div class="table-wrapper" *ngIf="!loading && users.length > 0">
+        <table>
+          <thead>
+            <tr>
+              <th>Nombre</th>
+              <th>Correo</th>
+              <th>Rol</th>
+              <th>DNI</th>
+              <th>Estado</th>
+              <th>Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (user of users; track trackById($index, user)) {
+              <tr>
+                <td>{{ user.full_name }}</td>
+                <td>{{ user.email }}</td>
+                <td>
+                  <span class="role-badge" [ngStyle]="getRoleBadgeStyle(user.role?.name)">
+                    {{ getRoleLabel(user.role?.name) }}
+                  </span>
+                </td>
+                <td>{{ user.dni ?? '-' }}</td>
+                <td>
+                  <span class="status-badge" [class.active]="user.is_active" [class.inactive]="!user.is_active">
+                    {{ user.is_active ? 'Activo' : 'Inactivo' }}
+                  </span>
+                </td>
+                <td class="actions">
+                  <button type="button" class="btn btn-small btn-secondary" (click)="edit(user)">Editar</button>
+                  <button
+                    type="button"
+                    class="btn btn-small btn-danger"
+                    [disabled]="deletingId === user.id"
+                    (click)="remove(user)"
+                  >
+                    {{ deletingId === user.id ? 'Eliminando...' : 'Eliminar' }}
+                  </button>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </article>
+  </section>
+</section>

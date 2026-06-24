@@ -1,0 +1,65 @@
+@if (pageHeader.config(); as header) {
+  <div class="page-header-shell">
+    <div class="page-header-copy">
+      @if (header.eyebrow) {
+        <span class="page-header-eyebrow">{{ header.eyebrow }}</span>
+      }
+
+      <h1>{{ header.title }}</h1>
+
+      @if (header.description) {
+        <p>{{ header.description }}</p>
+      }
+    </div>
+
+    <div class="quick-search" (click)="$event.stopPropagation()">
+      <label class="quick-search__label" for="quickClientSearch">Busqueda </label>
+      <div class="quick-search__input-wrap">
+        <input
+          id="quickClientSearch"
+          type="text"
+          [formControl]="quickSearchControl"
+          placeholder="Buscar por MZ, lote, DNI o nombre"
+          (focus)="onSearchFocus()"
+        />
+        @if (quickSearchControl.value) {
+          <button
+            type="button"
+            class="quick-search__clear"
+            aria-label="Limpiar búsqueda"
+            (click)="clearQuickSearch()"
+          >
+            ×
+          </button>
+        }
+      </div>
+
+      @if (quickSearchOpen && quickSearchTouched) {
+        <div class="quick-search__panel">
+          @if (quickSearchLoading) {
+            <div class="quick-search__state">Buscando clientes...</div>
+          } @else if (quickSearchError) {
+            <div class="quick-search__state quick-search__state--error">{{ quickSearchError }}</div>
+          } @else if (quickSearchControl.value.trim().length < 2) {
+            <div class="quick-search__state">Escribe al menos 2 caracteres para buscar.</div>
+          } @else if (quickSearchResults.length === 0) {
+            <div class="quick-search__state">No se encontraron clientes.</div>
+          } @else {
+            <div class="quick-search__result-list">
+              @for (result of quickSearchResults; track result.id) {
+                <button
+                  type="button"
+                  class="quick-search__result"
+                  (click)="openClient(result)"
+                >
+                  <strong>{{ result.fullName || 'Cliente sin nombre' }}</strong>
+                  <span>{{ getQuickSearchMeta(result) }}</span>
+                </button>
+              }
+            </div>
+          }
+        </div>
+      }
+    </div>
+  </div>
+}

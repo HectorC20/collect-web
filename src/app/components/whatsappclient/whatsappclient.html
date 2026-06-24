@@ -1,0 +1,386 @@
+<section class="messaging-page">
+  <app-page-header
+    eyebrow="Mensajería"
+    title="Mensajería de Cobranza"
+    description="Conecta sesiones por QR, conserva los chats en base de datos y permite respuestas con IA solo en conversaciones individuales."
+  ></app-page-header>
+
+  <div class="header-stats">
+    <article class="stat-card">
+      <strong>{{ filteredSessions.length }}</strong>
+      <span>Sesiones</span>
+    </article>
+    <article class="stat-card">
+      <strong>{{ linkedSessionsCount }}</strong>
+      <span>Vinculadas</span>
+    </article>
+    <article class="stat-card">
+      <strong>{{ pendingSessionsCount }}</strong>
+      <span>Pendientes</span>
+    </article>
+    <article class="stat-card">
+      <strong>{{ totalChats }}</strong>
+      <span>Chats</span>
+    </article>
+  </div>
+
+  <section class="state-card state-error" *ngIf="errorMessage() as error">
+    {{ error }}
+  </section>
+
+  <section class="session-toolbar">
+    <div class="session-toolbar__actions">
+      <a *ngIf="isAdminOrSuperCollector" class="btn btn-primary" routerLink="/system/whatsapp-sessions">
+        Sesiones WhatsApp
+      </a>
+      <button type="button" class="btn btn-ghost" (click)="refresh()">Actualizar</button>
+    </div>
+    <section class="chat-sidebar__session" *ngIf="activeSession as session">
+
+        <div class="chat-sidebar__session-badges">
+          <span class="status-chip" [ngClass]="getSessionStatusClass(session.status)">
+            {{ getSessionStatusLabel(session.status) }}
+          </span>
+          <span class="meta-pill">{{ totalUnread }} sin leer</span>
+          <span class="meta-pill">IA {{ session.ai_enabled ? 'activa' : 'inactiva' }}</span>
+        </div>
+      </section>
+    <div class="session-toolbar__status" *ngIf="activeSession as session">
+      <span class="status-chip" [ngClass]="getSessionStatusClass(session.status)">
+        {{ getSessionStatusLabel(session.status) }}
+      </span>
+      <span class="toolbar-meta"><strong>{{ session.name }}</strong></span>
+      <span class="toolbar-meta">{{ getSessionConnectionLabel(session) }}</span>
+      <span class="toolbar-meta" *ngIf="session.phone_number">{{ session.phone_number }}</span>
+      <span class="toolbar-meta" *ngIf="loading()">Sincronizando...</span>
+    </div>
+  </section>
+
+  <section class="empty-state" *ngIf="!loading() && filteredSessions.length === 0">
+    <strong>No hay sesiones de WhatsApp configuradas.</strong>
+    <span *ngIf="isAdminOrSuperCollector">Administra y vincula las sesiones desde Sistema > Sesiones WhatsApp.</span>
+    <span *ngIf="isCollector">Espera a que tu supervisor asigne una sesión de WhatsApp.</span>
+  </section>
+
+  <section class="messaging-layout" *ngIf="filteredSessions.length > 0">
+    <aside class="chat-sidebar panel-section">
+      <header class="chat-sidebar__header">
+        <div>
+          <span class="section-label">Conversaciones</span>
+          <h3>Lista de clientes</h3>
+          <p *ngIf="!isCollector">Todo el filtro queda dentro de esta columna.</p>
+          <p *ngIf="isCollector">Solo se muestran clientes que pertenecen a tu cartera.</p>
+        </div>
+        <span class="panel-badge">{{ chats().length + contacts().length }}</span>
+      </header>
+      
+
+      <form [formGroup]="searchForm" class="chat-sidebar__filters">
+        <label for="searchMessaging" class="search-label">Buscar en clientes y mensajes</label>
+        <div class="search-box">
+          <input
+            id="searchMessaging"
+            type="text"
+            formControlName="search"
+            placeholder="Cliente, DNI, telefono o ultimo mensaje"
+            class="search-input search-input--sidebar"
+          />
+        </div>
+
+        <div class="filter-row">
+          <label class="toggle-field toggle-field--inline">
+            <input type="checkbox" formControlName="unreadOnly" />
+            <span>Solo sin leer</span>
+          </label>
+
+          <button type="button" class="btn btn-ghost btn-small" (click)="resetSearch()">Limpiar</button>
+        </div>
+
+        <div class="conversation-toolbar">
+          <span class="meta-pill" *ngIf="searchForm.value.search?.trim()">Busqueda: {{ searchForm.value.search }}</span>
+          <span class="meta-pill" *ngIf="searchForm.value.unreadOnly">Filtro: solo pendientes</span>
+          <span class="meta-pill" *ngIf="isCollector">Filtro base: mi cartera</span>
+          <span class="meta-pill" *ngIf="!searchForm.value.search?.trim() && !searchForm.value.unreadOnly">Mostrando todos</span>
+        </div>
+      </form>
+
+      <div class="conversation-list conversation-list--sidebar" *ngIf="filteredChats.length > 0; else noChatsState">
+        <article
+          class="conversation-card conversation-card--compact"
+          *ngFor="let chat of filteredChats; trackBy: trackByChat"
+          [class.is-active]="activeChat?.id === chat.id"
+        >
+          <button type="button" class="conversation-summary conversation-summary--compact" (click)="selectChat(chat)">
+            <div class="conversation-top">
+              <div class="avatar-badge">
+                {{ getChatTitle(chat).charAt(0) }}
+              </div>
+              <div class="conversation-head">
+                <div class="head-row">
+                  <h3>{{ getChatTitle(chat) }}</h3>
+                  <span class="time-chip" *ngIf="chat.last_message_at">{{ chat.last_message_at | date:'shortTime' }}</span>
+                </div>
+
+                <div class="conversation-client-line">
+                  <span class="conversation-dni" *ngIf="chat.client?.dni">DNI {{ chat.client?.dni }}</span>
+                  <span class="conversation-client-status" *ngIf="chat.client?.status">{{ chat.client?.status }}</span>
+                </div>
+
+                <div class="chat-preview-row">
+                  <p>{{ getChatPreviewText(chat) }}</p>
+                  <span class="unread-chip" *ngIf="chat.unread_count > 0">{{ chat.unread_count }}</span>
+                </div>
+
+                <div class="conversation-secondary">
+                  <span class="meta-highlight">{{ getChatSecondaryLine(chat) || (chat.phone_number || chat.remote_jid) }}</span>
+                </div>
+
+                <div class="conversation-tags">
+                  <span class="status-chip status-muted">{{ chat.chat_type }}</span>
+                  <span class="meta-pill" *ngIf="chat.client?.current_bracket?.name">{{ chat.client?.current_bracket?.name }}</span>
+                </div>
+              </div>
+            </div>
+          </button>
+        </article>
+      </div>
+
+      <div class="conversation-list conversation-list--sidebar conversation-list--contacts" *ngIf="filteredContacts.length > 0">
+        <div class="conversation-list__section-title">Contactos de clientes</div>
+        <article
+          class="conversation-card conversation-card--compact conversation-card--contact"
+          *ngFor="let contact of filteredContacts; trackBy: trackByContact"
+          [class.is-active]="activeClient?.id === contact.client.id"
+        >
+          <button type="button" class="conversation-summary conversation-summary--compact" (click)="selectClientContact(contact)">
+            <div class="conversation-top">
+              <div class="avatar-badge">
+                {{ contact.client.full_name.charAt(0) || '?' }}
+              </div>
+              <div class="conversation-head">
+                <div class="head-row">
+                  <h3>{{ contact.client.full_name || 'Sin nombre' }}</h3>
+                  <span class="time-chip" *ngIf="hasLinkedChat(contact)">Chat</span>
+                </div>
+
+                <div class="conversation-client-line">
+                  <span class="conversation-dni" *ngIf="contact.client.dni">DNI {{ contact.client.dni }}</span>
+                  <span class="conversation-client-status" *ngIf="contact.client.status">{{ contact.client.status }}</span>
+                </div>
+
+                <div class="chat-preview-row">
+                  <p>{{ getContactPrimaryPhone(contact) }}</p>
+                </div>
+
+                <div class="conversation-secondary">
+                  <span class="meta-highlight">{{ getClientPhonesSummary(contact.client) }}</span>
+                </div>
+
+                <div class="conversation-tags">
+                  <span class="status-chip status-muted">{{ hasLinkedChat(contact) ? 'chat disponible' : 'nuevo numero' }}</span>
+                  <span class="meta-pill" *ngIf="contact.client.current_bracket?.name">{{ contact.client.current_bracket?.name }}</span>
+                </div>
+              </div>
+            </div>
+          </button>
+        </article>
+      </div>
+
+      <ng-template #noChatsState>
+        <div class="state-card state-card--sidebar">
+          No hay chats individuales para esta sesión con los filtros actuales.
+          <span *ngIf="isCollector">Solo aparecen chats vinculados a clientes de tu cartera.</span>
+        </div>
+      </ng-template>
+    </aside>
+
+    <section class="chat-panel" *ngIf="activeChat as chat; else noActiveChat">
+          <header class="chat-header">
+            <div class="chat-client">
+              <div class="avatar-badge avatar-large">
+                {{ getChatTitle(chat).charAt(0) }}
+              </div>
+              <div class="chat-client__info">
+                <span class="detail-kicker">{{ chat.id ? 'Chat seleccionado' : 'Contacto del cliente' }}</span>
+                <h2>{{ getChatTitle(chat) }}</h2>
+                <p>{{ chat.phone_number || chat.remote_jid }}</p>
+                <div class="chat-client__chips">
+                  <ng-container *ngIf="activeClient as client; else noClientChips">
+                    <span class="meta-pill" *ngIf="client.dni">DNI {{ client.dni }}</span>
+                    <span class="meta-pill" *ngIf="client.status">{{ client.status }}</span>
+                    <span class="meta-pill" *ngIf="client.current_bracket?.name">Tramo: {{ client.current_bracket?.name }}</span>
+                  </ng-container>
+                  <ng-template #noClientChips>
+                    <span class="meta-pill meta-pill--link">Sin cliente vinculado</span>
+                  </ng-template>
+                </div>
+              </div>
+            </div>
+
+            <div class="chat-actions">
+              <span class="status-chip" [ngClass]="getSessionStatusClass(activeSession?.status || 'disconnected')">
+                {{ getSessionStatusLabel(activeSession?.status || 'disconnected') }}
+              </span>
+            </div>
+          </header>
+
+          <div class="chat-body">
+            <section class="chat-thread">
+              <div class="message-list" id="messagingMessageList">
+                <article
+                  class="message-bubble"
+                  *ngFor="let message of messages(); trackBy: trackByMessage"
+                  [class.is-outgoing]="message.direction === 'out'"
+                  [class.is-ai]="message.is_from_ai"
+                >
+                  <p>{{ message.content || '[mensaje sin texto]' }}</p>
+                  <div class="message-meta">
+                    <span *ngIf="message.sent_at">{{ message.sent_at | date:'short' }}</span>
+                    <span class="message-tag" *ngIf="message.is_from_ai">IA</span>
+                    <span class="message-tag message-tag--warning" *ngIf="message.requires_human">Humano</span>
+                    <mat-icon *ngIf="message.direction === 'out'" class="message-status">
+                      {{ getMessageStatusIcon(message.status) }}
+                    </mat-icon>
+                  </div>
+                </article>
+
+                <div class="empty-thread" *ngIf="messages().length === 0">
+                  <strong>Aún no hay mensajes sincronizados.</strong>
+                  <span>Los mensajes nuevos aparecerán aquí al refrescar.</span>
+                </div>
+              </div>
+
+              <div class="quick-responses" *ngIf="activeSession?.ai_enabled">
+                <button type="button" (click)="useQuickResponse('Hola, ¿en qué puedo ayudarte?')">
+                  Saludo
+                </button>
+                <button type="button" (click)="useQuickResponse('Por favor, indícame tu duda')">
+                  Pregunta de ayuda
+                </button>
+                <button type="button" (click)="useQuickResponse('Gracias por tu mensaje')">
+                  Agradecimiento
+                </button>
+              </div>
+
+              <form class="composer-card" [formGroup]="composerForm" (ngSubmit)="sendMessage()">
+                <div class="composer-header">
+                  <strong>Enviar mensaje</strong>
+                  <span>{{ currentChat()?.id ? 'El envío usa la sesión QR persistida' : 'Se enviará al número actual del cliente' }}</span>
+                </div>
+                <textarea rows="3" formControlName="text" placeholder="Escribe aquí un mensaje para el cliente..."></textarea>
+                <div class="composer-actions">
+                  <button type="button" class="btn btn-ghost btn-small" (click)="refresh()">Actualizar</button>
+                  <button type="submit" class="btn btn-primary" [disabled]="actionLoading() || !activeSession || activeSession.status !== 'connected'">
+                    Enviar mensaje
+                  </button>
+                </div>
+              </form>
+            </section>
+
+            <aside class="info-panel">
+              <div class="info-card info-card--client">
+                <div class="section-label">Cliente vinculado</div>
+                <div class="info-grid" *ngIf="activeClient as client; else noLinkedClient">
+                  <div class="info-item info-item--wide info-item--hero">
+                    <span class="info-key">Resumen</span>
+                    <strong>{{ client.full_name }}</strong>
+                    <small>{{ client.phone || '-' }}<span *ngIf="client.current_bracket?.name"> · {{ client.current_bracket?.name }}</span></small>
+                  </div>
+                  <div class="info-item">
+                    <span class="info-key">Cliente</span>
+                    <strong>{{ client.full_name }}</strong>
+                  </div>
+                  <div class="info-item">
+                    <span class="info-key">DNI</span>
+                    <strong>{{ client.dni || '-' }}</strong>
+                  </div>
+                  <div class="info-item">
+                    <span class="info-key">Teléfono</span>
+                    <strong>{{ client.phone || '-' }}</strong>
+                  </div>
+                  <div class="info-item info-item--wide">
+                    <span class="info-key">Telefonos vinculados</span>
+                    <strong>{{ getClientPhonesSummary(client) }}</strong>
+                  </div>
+                  <div class="info-item">
+                    <span class="info-key">Estado</span>
+                    <strong>{{ client.status || '-' }}</strong>
+                  </div>
+                  <div class="info-item">
+                    <span class="info-key">Tramo</span>
+                    <strong>{{ client.current_bracket?.name || 'Sin tramo' }}</strong>
+                  </div>
+                  <div class="info-item">
+                    <span class="info-key">Cobrador</span>
+                    <strong>{{ client.assigned_user_name || 'Sin asignar' }}</strong>
+                  </div>
+                  <div class="info-item">
+                    <span class="info-key">Correo</span>
+                    <strong>{{ client.email || '-' }}</strong>
+                  </div>
+                  <div class="info-item">
+                    <span class="info-key">Distrito</span>
+                    <strong>{{ client.district || '-' }}</strong>
+                  </div>
+                  <div class="info-item info-item--wide">
+                    <span class="info-key">Ubicación</span>
+                    <strong>{{ client.province || '-' }} / {{ client.department || '-' }}</strong>
+                  </div>
+                </div>
+
+                <ng-template #noLinkedClient>
+                  <div class="session-note">
+                    Este chat aún no quedó vinculado a un cliente de la cartera. Si el cliente fue importado después, la relación se reconstruirá al refrescar el overview.
+                  </div>
+                </ng-template>
+              </div>
+
+              <div class="info-card info-card--summary">
+                <div class="section-label">Resumen del chat</div>
+                <div class="info-grid">
+                  <div class="info-item">
+                    <span class="info-key">Estado</span>
+                    <strong>{{ getSessionStatusLabel(activeSession?.status || 'disconnected') }}</strong>
+                  </div>
+                  <div class="info-item">
+                    <span class="info-key">Mensajes cargados</span>
+                    <strong>{{ messages().length }}</strong>
+                  </div>
+                  <div class="info-item">
+                    <span class="info-key">Cliente</span>
+                    <strong>{{ chat.client?.full_name || 'Sin vínculo' }}</strong>
+                  </div>
+                  <div class="info-item">
+                    <span class="info-key">JID remoto</span>
+                    <strong>{{ chat.remote_jid }}</strong>
+                  </div>
+                </div>
+              </div>
+
+              <div class="info-card" *ngIf="activeSession as session">
+                <div class="section-label">Reglas activas</div>
+                <div class="tag-list">
+                  <span class="tag-chip" [class.tag-chip--active]="session.ai_enabled">IA {{ session.ai_enabled ? 'Activa' : 'Inactiva' }}</span>
+                  <span class="tag-chip" [class.tag-chip--active]="session.ignore_groups">Sin grupos</span>
+                  <span class="tag-chip" [class.tag-chip--active]="session.ignore_status">Sin historias</span>
+                </div>
+              </div>
+
+              <div class="info-card" *ngIf="activeSession?.last_error">
+                <div class="section-label">Último error</div>
+                <p class="error-text">{{ activeSession?.last_error }}</p>
+              </div>
+            </aside>
+          </div>
+        </section>
+    </section>
+
+    <ng-template #noActiveChat>
+      <section class="chat-panel chat-panel--empty">
+        <div class="empty-chat-state">
+          <strong>Selecciona un cliente para empezar.</strong>
+          <span>Usa la columna izquierda para buscar por nombre, DNI, telefono o ultimo mensaje.</span>
+        </div>
+      </section>
+    </ng-template>
+    </section>

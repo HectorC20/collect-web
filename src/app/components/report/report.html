@@ -1,0 +1,90 @@
+<section class="report-page">
+  <app-page-header
+    eyebrow="Reportes"
+    title="Centro de Reportes"
+    description="Exporta reportes de Datos General, Carteras y Actividad Reciente con filtros por fecha, estados, cliente y lote."
+  ></app-page-header>
+
+  <nav class="report-tabs">
+    <a
+      *ngFor="let tab of visibleTabs"
+      [routerLink]="tab.route"
+      routerLinkActive="is-active"
+      class="report-tab"
+    >
+      {{ tab.label }}
+    </a>
+  </nav>
+
+  <section class="filter-card">
+    <header class="filter-card__header">
+      <div>
+        <h2>Filtros Compartidos</h2>
+        <p>Se aplican al reporte activo y a las tablas previas de las tres pestañas.</p>
+      </div>
+      @if (reportState.loading()) {
+        <span class="filter-status">Actualizando tablas...</span>
+      }
+    </header>
+
+    <form class="filters-grid" [formGroup]="filtersForm" (ngSubmit)="applyFilters()">
+      <label class="form-field">
+        <span>Busqueda general</span>
+        <input type="text" formControlName="search" placeholder="Nombre, DNI, MZ, lote o estado" />
+      </label>
+
+      <label class="form-field">
+        <span>Nombre</span>
+        <input type="text" formControlName="name" placeholder="Nombre del cliente" />
+      </label>
+
+      <label class="form-field">
+        <span>DNI</span>
+        <input type="text" formControlName="dni" placeholder="Documento" />
+      </label>
+
+      <label class="form-field">
+        <span>MZ</span>
+        <input type="text" formControlName="block" placeholder="Ej. F" />
+      </label>
+
+      <label class="form-field">
+        <span>Lote</span>
+        <input type="text" formControlName="lot" placeholder="Ej. 29" />
+      </label>
+
+      <label class="form-field">
+        <span>Estado del cliente</span>
+        <input type="text" formControlName="clientStatus" placeholder="ACTIVO, RESUELTO, etc." />
+      </label>
+
+      <label class="form-field">
+        <span>Estado del lote</span>
+        <input type="text" formControlName="lotStatus" placeholder="VENDIDO, RESUELTO, etc." />
+      </label>
+
+      <label class="form-field">
+        <span>Fecha desde</span>
+        <input type="date" formControlName="dateFrom" />
+      </label>
+
+      <label class="form-field">
+        <span>Fecha hasta</span>
+        <input type="date" formControlName="dateTo" />
+      </label>
+
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary" [disabled]="reportState.loading()">Aplicar filtros</button>
+        <button type="button" class="btn btn-ghost" [disabled]="reportState.loading()" (click)="resetFilters()">Limpiar</button>
+      </div>
+    </form>
+
+    @if (reportState.error(); as error) {
+      <div class="alert alert-error">{{ error }}</div>
+    }
+  </section>
+
+  <section class="report-content">
+    <router-outlet />
+  </section>
+</section>

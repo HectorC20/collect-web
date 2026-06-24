@@ -1,0 +1,99 @@
+<section class="actions-container">
+  <app-page-header
+    eyebrow="Sistema"
+    title="Gestión de Acciones"
+    description="Administra el catálogo de acciones usadas por el equipo de cobranza."
+  ></app-page-header>
+
+  <section class="search-card">
+    <form [formGroup]="searchForm" (ngSubmit)="search()">
+      <label for="search">Buscar</label>
+      <div class="search-actions">
+        <input id="search" type="text" formControlName="search" placeholder="Código, nombre, descripción u orden" />
+        <button type="submit" class="btn btn-primary">Filtrar</button>
+        <button type="button" class="btn btn-ghost" (click)="resetSearch()">Limpiar</button>
+      </div>
+    </form>
+  </section>
+
+  <section class="content-grid">
+    <article class="form-card">
+      <h2>{{ isEditing() ? 'Editar acción' : 'Crear acción' }}</h2>
+
+      <div *ngIf="feedback" class="alert alert-success">{{ feedback }}</div>
+      <div *ngIf="error" class="alert alert-error">{{ error }}</div>
+
+      <form [formGroup]="actionForm" (ngSubmit)="save()" class="actions-form">
+        <label for="code">Código *</label>
+        <input id="code" type="text" formControlName="code" placeholder="Ejemplo: carta_1, resolucion" />
+
+        <label for="name">Nombre *</label>
+        <input id="name" type="text" formControlName="name" placeholder="Ejemplo: Carta 1" />
+
+        <label for="description">Descripción</label>
+        <textarea id="description" rows="3" formControlName="description" placeholder="Detalle breve de la acción"></textarea>
+
+        <label for="sort_order">Orden *</label>
+        <input id="sort_order" type="number" min="0" formControlName="sort_order" />
+
+        <div class="checkbox-row">
+          <input id="is_active" type="checkbox" formControlName="is_active" />
+          <label for="is_active">Acción activa</label>
+        </div>
+
+        <div class="form-actions">
+          <button type="submit" class="btn btn-primary" [disabled]="saving">
+            {{ saving ? 'Guardando...' : (isEditing() ? 'Guardar cambios' : 'Crear acción') }}
+          </button>
+          <button type="button" class="btn btn-ghost" (click)="startCreate()">Cancelar</button>
+        </div>
+      </form>
+    </article>
+
+    <article class="table-card">
+      <h2>Listado de acciones</h2>
+
+      <app-page-loader [show]="loading" message="Cargando acciones..."></app-page-loader>
+      <div *ngIf="!loading && actionTypes.length === 0" class="state">No hay acciones registradas.</div>
+
+      <div class="table-wrapper" *ngIf="!loading && actionTypes.length > 0">
+        <table>
+          <thead>
+            <tr>
+              <th>Nombre</th>
+              <th>Código</th>
+              <th>Descripción</th>
+              <th>Orden</th>
+              <th>Estado</th>
+              <th>Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let actionType of actionTypes; trackBy: trackById">
+              <td>{{ actionType.name }}</td>
+              <td><code>{{ actionType.code }}</code></td>
+              <td class="description-cell">{{ actionType.description || '-' }}</td>
+              <td>{{ actionType.sort_order }}</td>
+              <td>
+                <span class="status-badge" [class.active]="actionType.is_active" [class.inactive]="!actionType.is_active">
+                  {{ actionType.is_active ? 'Activa' : 'Inactiva' }}
+                </span>
+              </td>
+              <td class="actions">
+                <button type="button" class="btn btn-small btn-secondary" (click)="edit(actionType)">Editar</button>
+                <button
+                  type="button"
+                  class="btn btn-small btn-danger"
+                  [disabled]="deletingId === actionType.id"
+                  (click)="remove(actionType)"
+                >
+                  {{ deletingId === actionType.id ? 'Eliminando...' : 'Eliminar' }}
+                </button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </article>
+  </section>
+</section>

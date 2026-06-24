@@ -1,0 +1,34 @@
+<app-modal
+  [isOpen]="service.isOpen()"
+  [title]="service.title"
+  [description]="service.message"
+  (onClose)="service.close()"
+>
+  <div class="confirm-body">
+    <div class="confirm-details" *ngIf="service.details">
+      {{ service.details }}
+    </div>
+
+    <div class="confirm-actions">
+      <button type="button" class="btn btn-ghost" [disabled]="service.loading()" (click)="service.close()">
+        {{ service.cancelText }}
+      </button>
+
+      <button
+        type="button"
+        class="btn"
+        [class.btn-primary]="service.variant === 'primary'"
+        [class.btn-danger]="service.variant === 'danger'"
+        [disabled]="service.loading()"
+        (click)="service.confirm()"
+      >
+        <span *ngIf="!service.loading()">{{ service.confirmText }}</span>
+        <span *ngIf="service.loading()" class="loading-text">
+          <span class="loading-dot"></span>
+          <span class="loading-dot"></span>
+          <span class="loading-dot"></span>
+        </span>
+      </button>
+    </div>
+  </div>
+</app-modal>

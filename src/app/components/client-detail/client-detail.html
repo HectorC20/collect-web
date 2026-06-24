@@ -1,0 +1,759 @@
+<section class="client-detail-page">
+  <app-page-header
+    eyebrow="Cliente"
+    [title]="client?.fullName || 'Detalle del cliente'"
+    description="Informacion completa del cliente, estado de contratos y cronograma de pagos."
+  ></app-page-header>
+
+  <section class="toolbar">
+    <button type="button" class="btn btn-ghost back-btn" (click)="goBack()">
+      &larr; Volver a la cartera
+    </button>
+    <span class="toolbar-hint">Mora desde {{ moroThresholdLabel }} de atraso.</span>
+  </section>
+
+  <div *ngIf="error" class="alert alert-error">{{ error }}</div>
+  <div *ngIf="detailFeedback" class="alert alert-success">{{ detailFeedback }}</div>
+  <app-page-loader [show]="loading" message="Cargando detalle del cliente..."></app-page-loader>
+
+  <div *ngIf="!loading && client" class="detail-content">
+    <section class="hero-grid">
+      <article class="hero-card">
+        <header class="hero-card__header">
+          <div>
+            <span class="section-eyebrow">Resumen del cliente</span>
+            <h2>{{ client.fullName || 'Cliente sin nombre' }}</h2>
+            <p>
+              DNI {{ client.dni || '-' }}
+              <span *ngIf="client.assignedUserName">· Asignado a {{ client.assignedUserName }}</span>
+            </p>
+          </div>
+          <div class="status-badges">
+            <span class="status-chip" *ngIf="client.status">{{ client.status }}</span>
+            <span class="status-chip status-chip-outline" *ngIf="client.currentBracket">{{ client.currentBracket.name }}</span>
+          </div>
+        </header>
+
+        <div class="hero-metrics">
+          <article>
+            <span>Contratos</span>
+            <strong>{{ totalContracts }}</strong>
+          </article>
+          <article>
+            <span>Cuotas</span>
+            <strong>{{ totalInstallments }}</strong>
+          </article>
+          <article>
+            <span>Pagadas</span>
+            <strong>{{ totalPaidInstallments }}</strong>
+          </article>
+          <article>
+            <span>Vencidas</span>
+            <strong>{{ totalOverdueInstallments }}</strong>
+          </article>
+          <article>
+            <span>En mora</span>
+            <strong>{{ totalMoraInstallments }}</strong>
+          </article>
+        </div>
+
+        <div class="hero-progress">
+          <div class="hero-progress__header">
+            <span>Avance general de pagos</span>
+            <strong>{{ overallProgressPercentage | number:'1.0-0' }}%</strong>
+          </div>
+          <div class="progress-bar progress-bar-lg" aria-label="Avance general del cliente">
+            <span class="progress-segment progress-paid" [style.width.%]="overallProgressPercentage"></span>
+          </div>
+        </div>
+      </article>
+
+      <article class="info-card">
+        <header class="info-card-header">
+          <div>
+            <span class="section-eyebrow">Ficha</span>
+            <h2>Datos del Cliente</h2>
+          </div>
+          <button
+            *ngIf="canEditClientData"
+            type="button"
+            class="btn btn-primary btn-small"
+            (click)="openEditClientModal()"
+          >
+            Editar cliente
+          </button>
+        </header>
+        <div class="info-grid">
+          <div class="info-item">
+            <span class="info-key">DNI</span>
+            <strong>{{ client.dni || '-' }}</strong>
+          </div>
+          <div class="info-item">
+            <span class="info-key">Telefono</span>
+            <strong>{{ client.phone || '-' }}</strong>
+          </div>
+          <div class="info-item">
+            <span class="info-key">Correo</span>
+            <strong>{{ client.email || '-' }}</strong>
+          </div>
+          <div class="info-item">
+            <span class="info-key">Tramo</span>
+            <strong>{{ client.currentBracket?.name || 'Sin tramo' }}</strong>
+          </div>
+          <div class="info-item info-item-wide">
+            <span class="info-key">Direccion</span>
+            <strong>{{ client.address || '-' }}</strong>
+          </div>
+          <div class="info-item">
+            <span class="info-key">Distrito</span>
+            <strong>{{ client.district || '-' }}</strong>
+          </div>
+          <div class="info-item">
+            <span class="info-key">Provincia</span>
+            <strong>{{ client.province || '-' }}</strong>
+          </div>
+          <div class="info-item">
+            <span class="info-key">Departamento</span>
+            <strong>{{ client.department || '-' }}</strong>
+          </div>
+          <div class="info-item">
+            <span class="info-key">Asignado a</span>
+            <strong>{{ client.assignedUserName || 'Sin asignar' }}</strong>
+          </div>
+        </div>
+      </article>
+    </section>
+
+    <section class="detail-bottom-grid" *ngIf="canManageActions">
+      <article class="info-card info-card-pending">
+        <header class="info-card-header">
+          <div>
+            <span class="section-eyebrow">Importaciones</span>
+            <h2>Actualizaciones Pendientes</h2>
+            <p class="section-copy">Revisa los cambios importados antes de aplicarlos sobre la cartera del cobrador.</p>
+          </div>
+        </header>
+
+        <div class="state-card state-card-inline" *ngIf="pendingLoading">Cargando actualizaciones pendientes...</div>
+        <div class="alert alert-error" *ngIf="pendingError">{{ pendingError }}</div>
+
+        <div class="pending-summary" *ngIf="!pendingLoading && pendingUpdates as pendingState">
+          <article>
+            <span>Total pendientes</span>
+            <strong>{{ pendingState.summary.totalCount }}</strong>
+          </article>
+          <article>
+            <span>Datos generales</span>
+            <strong>{{ pendingState.summary.generalCount }}</strong>
+          </article>
+          <article>
+            <span>Cronogramas</span>
+            <strong>{{ pendingState.summary.scheduleCount }}</strong>
+          </article>
+        </div>
+
+        <div class="pending-actions" *ngIf="hasPendingUpdates">
+          <button type="button" class="btn btn-warning" [disabled]="pendingSaving" (click)="approvePendingUpdates()">
+            {{ pendingSaving ? 'Aplicando...' : 'Aceptar cambios' }}
+          </button>
+          <button type="button" class="btn btn-ghost" [disabled]="pendingSaving" (click)="rejectPendingUpdates()">
+            Rechazar cambios
+          </button>
+          <span class="form-feedback" *ngIf="pendingFeedback">{{ pendingFeedback }}</span>
+        </div>
+
+        <div class="state-card state-card-inline" *ngIf="!pendingLoading && !pendingError && !hasPendingUpdates">
+          No hay cambios pendientes por aprobar para este cliente.
+        </div>
+
+        <div class="pending-update-list" *ngIf="!pendingLoading && hasPendingUpdates">
+          <article class="pending-update-card" *ngFor="let item of pendingItems; trackBy: trackByPendingItem">
+            <div class="pending-update-card__header">
+              <div>
+                <strong>{{ getPendingItemTitle(item) }}</strong>
+                <span>{{ item.importFileName || 'Importacion manual' }} · Filas {{ getPendingItemRows(item) }}</span>
+              </div>
+              <small>{{ item.createdAt ? (item.createdAt | date:'dd/MM/yyyy HH:mm') : '-' }}</small>
+            </div>
+
+            <div class="pending-change-list">
+              <div class="pending-change-row" *ngFor="let change of item.changes">
+                <span class="pending-change-field">{{ change.label }}</span>
+                <div class="pending-change-values">
+                  <span class="pending-old">{{ change.oldValue }}</span>
+                  <span class="pending-arrow">→</span>
+                  <strong class="pending-new">{{ change.newValue }}</strong>
+                </div>
+              </div>
+            </div>
+          </article>
+        </div>
+      </article>
+
+      <article class="info-card info-card-highlight">
+        <header class="info-card-header">
+          <div>
+            <span class="section-eyebrow">Cobranza</span>
+            <h2>Acciones del Cliente</h2>
+            <p class="section-copy">Registra las acciones de seguimiento disponibles para este cliente.</p>
+          </div>
+        </header>
+
+        <div class="action-overview" *ngIf="client.latestAction as latestAction; else noLatestAction">
+          <div>
+            <span class="info-key">Ultima accion realizada</span>
+            <strong>{{ latestAction.actionTypeName }}</strong>
+          </div>
+          <div>
+            <span class="info-key">Fecha</span>
+            <strong>{{ latestAction.actionDate ? (latestAction.actionDate | date:'dd/MM/yyyy HH:mm') : '-' }}</strong>
+          </div>
+        </div>
+
+        <ng-template #noLatestAction>
+          <div class="action-overview action-overview-empty">
+            <span>Aun no se registraron acciones para este cliente.</span>
+          </div>
+        </ng-template>
+
+        <div class="action-catalog" *ngIf="actionCatalog.length > 0; else emptyCatalog">
+          <article class="action-chip-card" *ngFor="let actionType of actionCatalog" [class.is-done]="getActionTypeState(actionType.id)">
+            <div class="action-chip-card__top">
+              <strong>{{ actionType.name }}</strong>
+              <span>{{ getActionTypeState(actionType.id) ? 'Realizada' : 'Pendiente' }}</span>
+            </div>
+            <p>{{ actionType.description || 'Accion disponible para registrar en la gestion de cobranza.' }}</p>
+            <small>Ultimo registro: {{ getActionTypeLastDate(actionType.id) }}</small>
+          </article>
+        </div>
+
+        <ng-template #emptyCatalog>
+          <div class="state-card state-card-inline">
+            {{ catalogLoading ? 'Cargando acciones disponibles...' : 'No hay acciones configuradas.' }}
+          </div>
+        </ng-template>
+
+        <form class="inline-form" [formGroup]="actionForm" (ngSubmit)="registerAction()">
+          <div class="inline-form-grid">
+            <div class="form-field">
+              <label for="actionTypeId">Accion</label>
+              <select id="actionTypeId" formControlName="actionTypeId">
+                <option value="">Seleccionar accion</option>
+                <option
+                  *ngFor="let actionType of actionCatalog"
+                  [value]="actionType.id"
+                  [disabled]="!isActionTypeAvailable(actionType.id)"
+                >
+                  {{ actionType.name }}{{ getActionTypeState(actionType.id) ? ' - Ya registrada' : '' }}
+                </option>
+              </select>
+            </div>
+            <div class="form-field">
+              <label for="actionDate">Fecha de accion</label>
+              <input id="actionDate" type="datetime-local" formControlName="actionDate" />
+            </div>
+          </div>
+
+          <div class="form-field">
+            <label for="actionObservation">Observacion</label>
+            <textarea
+              id="actionObservation"
+              rows="3"
+              formControlName="observation"
+              placeholder="Detalle breve de la accion realizada"
+            ></textarea>
+          </div>
+
+          <div class="form-actions">
+            <button
+              type="submit"
+              class="btn btn-primary"
+              [disabled]="actionSaving || catalogLoading || !isActionTypeAvailable(actionForm.value.actionTypeId ?? '')"
+            >
+              {{ actionSaving ? 'Guardando...' : 'Registrar accion' }}
+            </button>
+            <span class="form-feedback" *ngIf="actionFeedback">{{ actionFeedback }}</span>
+          </div>
+        </form>
+      </article>
+
+      <article class="info-card">
+        <header class="info-card-header">
+          <div>
+            <span class="section-eyebrow">Seguimiento</span>
+            <h2>Historial de Acciones</h2>
+            <p class="section-copy">Consulta el registro cronológico de la gestión del cliente.</p>
+          </div>
+        </header>
+
+        <div class="state-card state-card-inline" *ngIf="historyLoading">Cargando historial de acciones...</div>
+        <div class="alert alert-error" *ngIf="historyError">{{ historyError }}</div>
+
+        <div class="history-list" *ngIf="!historyLoading && history.length > 0">
+          <article class="history-item" *ngFor="let historyItem of history">
+            <div class="history-item__header">
+              <strong>{{ historyItem.actionTypeName || 'Accion' }}</strong>
+              <span>{{ historyItem.actionDate ? (historyItem.actionDate | date:'dd/MM/yyyy HH:mm') : '-' }}</span>
+            </div>
+            <p>{{ historyItem.observation || 'Sin observacion registrada.' }}</p>
+            <small>Registrado por: {{ historyItem.userName || 'Usuario del sistema' }}</small>
+          </article>
+        </div>
+
+        <div class="state-card state-card-inline" *ngIf="!historyLoading && !historyError && history.length === 0">
+          Todavia no hay registros en el historial de acciones.
+        </div>
+      </article>
+    </section>
+
+    <article class="contracts-section" *ngIf="contractsView.length > 0">
+      <header class="contracts-section__header">
+        <div>
+          <span class="section-eyebrow">Seguimiento</span>
+          <h3>Contratos y Cronogramas de Pagos</h3>
+          <p>Revisa el estado del contrato y cada cuota con mayor claridad visual.</p>
+        </div>
+
+        <div class="contracts-section__tools">
+          <div class="view-toggle">
+            <button
+              type="button"
+              class="toggle-chip"
+              [class.is-active]="installmentViewMode === 'blocks'"
+              (click)="setInstallmentViewMode('blocks')"
+            >
+              Bloques
+            </button>
+            <button
+              type="button"
+              class="toggle-chip"
+              [class.is-active]="installmentViewMode === 'table'"
+              (click)="setInstallmentViewMode('table')"
+            >
+              Tabla
+            </button>
+          </div>
+
+          <div class="installment-legend">
+            <span><i class="legend-dot legend-dot-paid"></i>Pagada</span>
+            <span><i class="legend-dot legend-dot-overdue"></i>Vencida</span>
+            <span><i class="legend-dot legend-dot-mora"></i>Mora</span>
+            <span><i class="legend-dot legend-dot-pending"></i>Proximos</span>
+          </div>
+        </div>
+      </header>
+
+      <div class="installment-filter-bar">
+        <button
+          type="button"
+          class="filter-chip"
+          *ngFor="let filter of installmentFilters"
+          [class.is-active]="isInstallmentFilterActive(filter.key)"
+          (click)="setInstallmentFilter(filter.key)"
+        >
+          <span>{{ filter.label }}</span>
+          <strong>{{ filter.count }}</strong>
+        </button>
+      </div>
+
+      <div class="contract-card" *ngFor="let contract of contractsView; trackBy: trackByContract" [attr.data-tone]="getContractTone(contract)">
+        <header class="contract-header">
+          <div class="contract-title">
+            <div class="contract-title__top">
+              <span class="contract-chip">MZ {{ contract.block || '-' }}</span>
+              <span class="contract-chip contract-chip-muted">Lote {{ contract.lot || '-' }}</span>
+              <span class="contract-chip contract-chip-tone">{{ getContractTone(contract) === 'mora' ? 'Con mora' : getContractTone(contract) === 'overdue' ? 'Con atraso' : 'Proximos pagos' }}</span>
+            </div>
+            <h4>Contrato de lote {{ contract.lot || '-' }}</h4>
+            <p>Estado lote: {{ contract.lotStatus || '-' }} · Tipo venta: {{ contract.saleType || '-' }}</p>
+          </div>
+
+          <div class="contract-metrics">
+            <article>
+              <span>Total</span>
+              <strong>{{ contract.totalAmount | number:'1.2-2' }}</strong>
+            </article>
+            <article>
+              <span>Pagadas</span>
+              <strong>{{ contract.summary.paidCount }}</strong>
+            </article>
+            <article>
+              <span>Vencidas</span>
+              <strong>{{ contract.summary.overdueCount }}</strong>
+            </article>
+            <article>
+              <span>Cuotas</span>
+              <strong>{{ contract.summary.installmentCount }}</strong>
+            </article>
+            <article>
+              <span>Restantes</span>
+              <strong>{{ getPendingInstallments(contract) }}</strong>
+            </article>
+          </div>
+        </header>
+
+        <div class="contract-progress-card">
+          <div class="contract-progress-card__header">
+            <span>Avance del contrato</span>
+            <strong>{{ getContractProgressPercentage(contract) | number:'1.0-0' }}%</strong>
+          </div>
+
+          <div class="progress-bar" aria-label="Avance del contrato">
+            <span
+              class="progress-segment progress-paid"
+              [style.width.%]="getContractProgressPercentage(contract)"
+            ></span>
+            <span
+              class="progress-segment progress-overdue"
+              [style.width.%]="contract.summary.installmentCount > 0 ? (contract.summary.overdueCount / contract.summary.installmentCount) * 100 : 0"
+            ></span>
+            <span
+              class="progress-segment progress-pending"
+              [style.width.%]="contract.summary.installmentCount > 0 ? (getPendingInstallments(contract) / contract.summary.installmentCount) * 100 : 0"
+            ></span>
+          </div>
+
+          <div class="contract-progress-card__stats">
+            <span>Pagadas: {{ contract.summary.paidCount }}</span>
+            <span>Vencidas: {{ contract.summary.overdueCount }}</span>
+            <span>Restantes: {{ getPendingInstallments(contract) }}</span>
+          </div>
+        </div>
+
+        <div class="contract-installment-overview">
+          <article class="overview-chip">
+            <span>Mostrando</span>
+            <strong>{{ getFilteredInstallments(contract).length }}</strong>
+          </article>
+          <article class="overview-chip">
+            <span>Pagadas</span>
+            <strong>{{ getInstallmentStatusCount(contract, 'paid') }}</strong>
+          </article>
+          <article class="overview-chip">
+            <span>Vencidas</span>
+            <strong>{{ getInstallmentStatusCount(contract, 'overdue') }}</strong>
+          </article>
+          <article class="overview-chip">
+            <span>Mora</span>
+            <strong>{{ getInstallmentStatusCount(contract, 'mora') }}</strong>
+          </article>
+          <article class="overview-chip">
+            <span>Proximos</span>
+            <strong>{{ getInstallmentStatusCount(contract, 'pending') }}</strong>
+          </article>
+        </div>
+
+        <div class="installment-block-grid" *ngIf="installmentViewMode === 'blocks'; else tableMode">
+          <article
+            class="installment-block"
+            *ngFor="let inst of getFilteredInstallments(contract); trackBy: trackByInstallment"
+            [attr.data-tone]="getInstallmentCardTone(inst)"
+          >
+            <div class="installment-block__header">
+              <div class="installment-block__title">
+                <span class="installment-block__label">Cuota</span>
+                <h5>#{{ inst.number || '-' }}</h5>
+              </div>
+              <span
+                class="status-chip"
+                [class.status-chip-paid]="inst.isPaid"
+                [class.status-chip-overdue]="inst.isOverdue"
+                [class.status-chip-mora]="inst.isMora"
+              >
+                {{ getInstallmentStateLabel(inst) }}
+              </span>
+            </div>
+
+            <div class="installment-block__amount">
+              {{ inst.amount | number:'1.2-2' }}
+            </div>
+
+            <div class="installment-block__due">
+              <span>Vencimiento</span>
+              <strong>{{ inst.dueDate ? (inst.dueDate | date:'dd/MM/yyyy') : '-' }}</strong>
+            </div>
+
+            <div class="installment-block__chips" *ngIf="inst.installmentType || inst.paymentType || inst.importedStatus">
+              <span *ngIf="inst.installmentType">{{ inst.installmentType }}</span>
+              <span *ngIf="inst.paymentType">{{ inst.paymentType }}</span>
+              <span *ngIf="inst.importedStatus">{{ inst.importedStatus }}</span>
+            </div>
+
+            <div class="installment-block__stats">
+              <div class="installment-stat">
+                <span>Pago</span>
+                <strong>{{ inst.paidAmount ? (inst.paidAmount | number:'1.2-2') : '-' }}</strong>
+              </div>
+              <div class="installment-stat">
+                <span>Saldo</span>
+                <strong>{{ getInstallmentPendingAmountLabel(inst) }}</strong>
+              </div>
+              <div class="installment-stat">
+                <span>Comprobante</span>
+                <strong>{{ getInstallmentPaymentReferenceLabel(inst) }}</strong>
+              </div>
+            </div>
+
+            <div class="installment-block__payment-summary" *ngIf="inst.paymentMethod || inst.paymentBank || inst.paymentBankOrigin">
+              {{ getInstallmentPaymentSummary(inst) }}
+            </div>
+
+            <div class="installment-block__footer">
+              <span class="installment-block__footer-text">{{ getInstallmentSecondaryLabel(inst) }}</span>
+              <button
+                *ngIf="canEditClientData"
+                type="button"
+                class="btn btn-ghost btn-small"
+                (click)="openInstallmentModal(contract, inst)"
+              >
+                Editar cuota
+              </button>
+            </div>
+          </article>
+
+          <div class="state-card state-card-inline" *ngIf="getFilteredInstallments(contract).length === 0">
+            No hay cuotas para mostrar con el filtro seleccionado en este contrato.
+          </div>
+        </div>
+
+        <ng-template #tableMode>
+        <div class="installments-table-container">
+          <table class="installments-table">
+            <thead>
+              <tr>
+                <th>Cuota</th>
+                <th>Tipo cuota</th>
+                <th>Vencimiento</th>
+                <th>Monto</th>
+                <th>Estado importado</th>
+                <th>Pago</th>
+                <th>Tipo pago</th>
+                <th>Método</th>
+                <th>Canal</th>
+                <th>Banco</th>
+                <th>Banco origen</th>
+                <th>Comprobante</th>
+                <th>Estado</th>
+                <th>Días atraso</th>
+                <th *ngIf="canEditClientData">Acciones</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr
+                *ngFor="let inst of getFilteredInstallments(contract); trackBy: trackByInstallment"
+                [class.is-overdue]="inst.isOverdue"
+                [class.is-mora]="inst.isMora"
+                [class.is-paid]="inst.isPaid"
+              >
+                <td>
+                  <div class="installment-number">
+                    <strong>#{{ inst.number || '-' }}</strong>
+                    <small>Cuota</small>
+                  </div>
+                </td>
+                <td>{{ getInstallmentTypeLabel(inst) }}</td>
+                <td>{{ inst.dueDate ? (inst.dueDate | date:'dd/MM/yyyy') : '-' }}</td>
+                <td>{{ inst.amount | number:'1.2-2' }}</td>
+                <td>{{ getInstallmentImportedStatusLabel(inst) }}</td>
+                <td>
+                  <div class="payment-cell">
+                    <strong>{{ inst.paidAmount ? (inst.paidAmount | number:'1.2-2') : '-' }}</strong>
+                    <span *ngIf="inst.paymentDate" class="payment-date">{{ inst.paymentDate | date:'dd/MM/yyyy' }}</span>
+                  </div>
+                </td>
+                <td>{{ getInstallmentPaymentTypeLabel(inst) }}</td>
+                <td>{{ getInstallmentPaymentMethodLabel(inst) }}</td>
+                <td>{{ getInstallmentPaymentChannelLabel(inst) }}</td>
+                <td>{{ getInstallmentPaymentBankLabel(inst) }}</td>
+                <td>{{ getInstallmentPaymentBankOriginLabel(inst) }}</td>
+                <td>{{ getInstallmentPaymentReferenceLabel(inst) }}</td>
+                <td>
+                  <ng-container *ngIf="getInstallmentStateLabel(inst) as installmentState; else noInstallmentState">
+                    <span class="status-chip" [class.status-chip-paid]="inst.isPaid" [class.status-chip-overdue]="inst.isOverdue" [class.status-chip-mora]="inst.isMora">
+                      {{ installmentState }}
+                    </span>
+                  </ng-container>
+                  <ng-template #noInstallmentState>
+                    <span class="status-empty">-</span>
+                  </ng-template>
+                </td>
+                <td>{{ inst.isPaid || !inst.isOverdue ? '-' : inst.daysOverdue }}</td>
+                <td *ngIf="canEditClientData">
+                  <button type="button" class="btn btn-ghost btn-small" (click)="openInstallmentModal(contract, inst)">
+                    Editar
+                  </button>
+                </td>
+              </tr>
+              <tr *ngIf="getFilteredInstallments(contract).length === 0">
+                <td [attr.colspan]="canEditClientData ? 14 : 13" class="table-empty-state">No hay cuotas para mostrar con el filtro seleccionado.</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        </ng-template>
+      </div>
+    </article>
+
+  </div>
+
+  <app-modal
+    [isOpen]="showEditClientModal"
+    [isWide]="true"
+    title="Editar informacion del cliente"
+    description="Actualiza los datos principales del cliente desde su detalle."
+    (onClose)="closeEditClientModal()"
+  >
+    <form id="clientDetailEditForm" [formGroup]="clientForm" (ngSubmit)="saveClientChanges()" class="inline-form modal-form">
+      <div class="form-section">
+        <div class="section-title">Datos personales</div>
+        <div class="inline-form-grid">
+          <div class="form-field form-field--full">
+            <label for="detailClientName">Nombres y apellidos *</label>
+            <input id="detailClientName" type="text" formControlName="full_name" />
+            <div class="field-error" *ngIf="clientForm.get('full_name')?.touched && clientForm.get('full_name')?.invalid">
+              El nombre es obligatorio.
+            </div>
+          </div>
+          <div class="form-field">
+            <label for="detailClientDni">DNI</label>
+            <input id="detailClientDni" type="text" formControlName="dni" />
+          </div>
+          <div class="form-field">
+            <label for="detailClientPhone">Telefono</label>
+            <input id="detailClientPhone" type="text" formControlName="phone" />
+          </div>
+          <div class="form-field form-field--full">
+            <label for="detailClientEmail">Correo electronico</label>
+            <input id="detailClientEmail" type="email" formControlName="email" />
+            <div class="field-error" *ngIf="clientForm.get('email')?.touched && clientForm.get('email')?.invalid">
+              Ingresa un correo valido.
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="form-section">
+        <div class="section-title">Ubicacion</div>
+        <div class="inline-form-grid">
+          <div class="form-field form-field--full">
+            <label for="detailClientAddress">Direccion</label>
+            <input id="detailClientAddress" type="text" formControlName="address" />
+          </div>
+          <div class="form-field">
+            <label for="detailClientDistrict">Distrito</label>
+            <input id="detailClientDistrict" type="text" formControlName="district" />
+          </div>
+          <div class="form-field">
+            <label for="detailClientProvince">Provincia</label>
+            <input id="detailClientProvince" type="text" formControlName="province" />
+          </div>
+          <div class="form-field form-field--full">
+            <label for="detailClientDepartment">Departamento</label>
+            <input id="detailClientDepartment" type="text" formControlName="department" />
+          </div>
+        </div>
+      </div>
+
+      <div class="form-feedback" *ngIf="clientModalFeedback">{{ clientModalFeedback }}</div>
+      <div class="field-error" *ngIf="clientModalError">{{ clientModalError }}</div>
+    </form>
+
+    <div modalFooter class="modal-footer-actions">
+      <button type="button" class="btn btn-ghost" (click)="closeEditClientModal()">Cancelar</button>
+      <button type="submit" class="btn btn-primary" form="clientDetailEditForm" [disabled]="clientSaving">
+        {{ clientSaving ? 'Guardando...' : 'Guardar cambios' }}
+      </button>
+    </div>
+  </app-modal>
+
+  <app-modal
+    [isOpen]="showInstallmentModal"
+    [isWide]="true"
+    [title]="editingInstallmentTitle"
+    [description]="editingInstallmentDescription"
+    (onClose)="closeInstallmentModal()"
+  >
+    <form id="installmentEditForm" [formGroup]="installmentForm" (ngSubmit)="saveInstallmentChanges()" class="inline-form modal-form">
+      <div class="form-section">
+        <div class="section-title">Pago de la cuota</div>
+        <div class="inline-form-grid">
+          <div class="form-field">
+            <label for="installmentType">Tipo de cuota</label>
+            <select id="installmentType" formControlName="installmentType">
+              <option value="">Selecciona</option>
+              <option value="FINANCIADO">FINANCIADO</option>
+              <option value="INICIAL">INICIAL</option>
+              <option value="BPP">BPP</option>
+              <option value="BALON">BALON</option>
+            </select>
+          </div>
+          <div class="form-field">
+            <label for="installmentPaymentDate">Fecha de pago</label>
+            <input id="installmentPaymentDate" type="date" formControlName="paymentDate" />
+          </div>
+          <div class="form-field">
+            <label for="installmentPaidAmount">Monto pagado</label>
+            <input id="installmentPaidAmount" type="number" min="0" step="0.01" formControlName="paidAmount" />
+          </div>
+          <div class="form-field">
+            <label for="installmentImportedStatus">Estado importado</label>
+            <select id="installmentImportedStatus" formControlName="importedStatus">
+              <option value="">Selecciona</option>
+              <option value="DIFERENCIA">DIFERENCIA</option>
+              <option value="CONFLICTO">CONFLICTO</option>
+              <option value="PENDIENTE DE VALIDACION">PENDIENTE DE VALIDACION</option>
+              <option value="DUPLICADO">DUPLICADO</option>
+            </select>
+          </div>
+          <div class="form-field">
+            <label for="installmentPaymentType">Tipo de pago</label>
+            <select id="installmentPaymentType" formControlName="paymentType">
+              <option value="">Selecciona</option>
+              <option value="PARCIAL">PARCIAL</option>
+              <option value="TOTAL">TOTAL</option>
+            </select>
+          </div>
+          <div class="form-field">
+            <label for="installmentPaymentChannel">Canal de pago</label>
+            <input id="installmentPaymentChannel" type="text" formControlName="paymentChannel" placeholder="Ej. Yape, banca, caja" />
+          </div>
+          <div class="form-field form-field--full">
+            <label for="installmentPaymentReference">Comprobante o codigo de pago</label>
+            <input
+              id="installmentPaymentReference"
+              type="text"
+              formControlName="paymentReference"
+              placeholder="Numero de operacion, voucher o comprobante"
+            />
+          </div>
+          <div class="form-field">
+            <label for="installmentPaymentMethod">Metodo de pago</label>
+            <input id="installmentPaymentMethod" type="text" formControlName="paymentMethod" placeholder="Ej. Transferencia" />
+          </div>
+          <div class="form-field">
+            <label for="installmentPaymentBank">Banco</label>
+            <input id="installmentPaymentBank" type="text" formControlName="paymentBank" placeholder="Ej. BBVA" />
+          </div>
+          <div class="form-field">
+            <label for="installmentPaymentBankOrigin">Banco de origen</label>
+            <input id="installmentPaymentBankOrigin" type="text" formControlName="paymentBankOrigin" placeholder="Ej. Interbank" />
+          </div>
+          <div class="form-field">
+            <label for="installmentStatus">Estado final</label>
+            <input id="installmentStatus" type="text" formControlName="status" placeholder="Se calculara automaticamente" readonly />
+          </div>
+        </div>
+      </div>
+
+      <div class="form-feedback" *ngIf="installmentModalFeedback">{{ installmentModalFeedback }}</div>
+      <div class="field-error" *ngIf="installmentModalError">{{ installmentModalError }}</div>
+    </form>
+
+    <div modalFooter class="modal-footer-actions">
+      <button type="button" class="btn btn-ghost" (click)="closeInstallmentModal()">Cancelar</button>
+      <button type="submit" class="btn btn-primary" form="installmentEditForm" [disabled]="installmentSaving">
+        {{ installmentSaving ? 'Guardando...' : 'Guardar cuota' }}
+      </button>
+    </div>
+  </app-modal>
+</section>

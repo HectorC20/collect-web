@@ -1,0 +1,107 @@
+<section class="alerts-card">
+  <header class="alerts-header">
+    <div>
+      <span class="alerts-kicker">Alertas</span>
+      <h2>Clientes por vencer</h2>
+      <p *ngIf="summary?.config as config">
+        Monitorea clientes con cuotas por vencer o recién vencidas según parámetros del sistema.
+        Ventana activa: {{ config.daysAhead }} día(s) y vencidos recientes: {{ config.overdueRecentDays }} día(s).
+      </p>
+    </div>
+  </header>
+
+  <div *ngIf="error" class="alert alert-error">{{ error }}</div>
+  <app-page-loader [show]="loading" message="Calculando alertas de cartera..."></app-page-loader>
+
+  <ng-container *ngIf="!loading">
+    <div *ngIf="!contextReady" class="state-card">
+      {{ contextEmptyMessage }}
+    </div>
+
+    <div *ngIf="summary && !summary.enabled" class="state-card">
+      Las alertas de cartera están deshabilitadas por parámetros del sistema.
+    </div>
+
+    <ng-container *ngIf="contextReady && summary?.enabled">
+      <section class="summary-grid" *ngIf="summary">
+        <article class="summary-tile summary-danger">
+          <span>Recién vencidos</span>
+          <strong>{{ summary.overdueRecent }}</strong>
+        </article>
+        <article class="summary-tile summary-warning">
+          <span>Vencen hoy</span>
+          <strong>{{ summary.dueToday }}</strong>
+        </article>
+        <article class="summary-tile summary-info">
+          <span>Por vencer</span>
+          <strong>{{ summary.dueSoon }}</strong>
+        </article>
+        <article class="summary-tile summary-neutral">
+          <span>Total visible</span>
+          <strong>{{ summary.total }}</strong>
+        </article>
+      </section>
+
+      <div *ngIf="alerts.length === 0" class="state-card">
+        No hay clientes que cumplan las reglas de alertas con los filtros actuales de la cartera.
+      </div>
+
+      <div class="alerts-list" *ngIf="alerts.length > 0">
+        <article class="alert-item" *ngFor="let item of alerts; trackBy: trackByAlert">
+          <div class="alert-item__top">
+            <div class="alert-item__title">
+              <div class="alert-item__badges">
+                <span class="severity-chip" [ngClass]="getSeverityClass(item.severity)">
+                  {{ getSeverityLabel(item.severity) }}
+                </span>
+                <span class="meta-chip">MZ {{ item.block || '-' }}</span>
+                <span class="meta-chip">{{ item.lot || 'Sin lote' }}</span>
+              </div>
+              <h3>{{ item.clientName }}</h3>
+              <p>{{ item.reason }}</p>
+            </div>
+
+            <button type="button" class="btn btn-primary btn-small" (click)="openClient(item.clientId)">
+              Ver cliente
+            </button>
+          </div>
+
+          <div class="alert-item__grid">
+            <div>
+              <span class="label">DNI</span>
+              <strong>{{ item.dni || '-' }}</strong>
+            </div>
+            <div>
+              <span class="label">Cobrador</span>
+              <strong>{{ item.assignedUserName || 'Sin asignar' }}</strong>
+            </div>
+            <div>
+              <span class="label">Estado cliente</span>
+              <strong>{{ item.clientStatus || '-' }}</strong>
+            </div>
+            <div>
+              <span class="label">Estado lote</span>
+              <strong>{{ item.lotStatus || '-' }}</strong>
+            </div>
+            <div>
+              <span class="label">Tramo</span>
+              <strong>{{ item.bracketName || 'Sin tramo' }}</strong>
+            </div>
+            <div>
+              <span class="label">Cuota</span>
+              <strong>{{ item.installmentNumber ?? '-' }}</strong>
+            </div>
+            <div>
+              <span class="label">Vence</span>
+              <strong>{{ item.dueDate | date:'dd/MM/yyyy' }}</strong>
+            </div>
+            <div>
+              <span class="label">Saldo pendiente</span>
+              <strong>{{ item.pendingAmount | number:'1.2-2' }}</strong>
+            </div>
+          </div>
+        </article>
+      </div>
+    </ng-container>
+  </ng-container>
+</section>

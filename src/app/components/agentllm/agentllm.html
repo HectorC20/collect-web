@@ -1,0 +1,756 @@
+<section class="agentllm-container">
+  <app-page-header
+    eyebrow="IA"
+    title="Configuracion Guiada de AgentLLM"
+    description="Crea tu API key, configura MCP y activa tu agente desde el backend principal, sin levantar otro servidor."
+  ></app-page-header>
+
+  <div *ngIf="feedback" class="alert alert-success">{{ feedback }}</div>
+  <div *ngIf="error" class="alert alert-error">{{ error }}</div>
+
+  <app-page-loader [show]="loading" message="Cargando configuracion de AgentLLM..."></app-page-loader>
+
+  <ng-container *ngIf="!loading">
+    <article class="hero-card">
+      <div class="hero-header">
+        <div>
+          <h2>{{ currentUser?.full_name || 'Mi agente' }}</h2>
+          <p>
+            Todo este flujo consume rutas del backend principal de Laravel. El objetivo es que puedas avanzar en orden:
+            API key, MCP, vinculacion y prueba.
+          </p>
+        </div>
+        <div class="hero-badges">
+          <span class="badge badge-active">Backend principal</span>
+          <span class="badge" [class.badge-active]="setting?.agent_enabled" [class.badge-inactive]="!setting?.agent_enabled">
+            {{ setting?.agent_enabled ? 'Agente activo' : 'Agente inactivo' }}
+          </span>
+        </div>
+      </div>
+
+      <div class="progress-panel">
+        <div class="progress-copy">
+          <strong>{{ completedSteps }}/{{ setupSteps.length }} pasos completados</strong>
+          <span *ngIf="nextStep">Siguiente paso: {{ nextStep.label }}</span>
+          <span *ngIf="!nextStep">Configuracion lista para usar.</span>
+        </div>
+        <div class="progress-track">
+          <div class="progress-value" [style.width.%]="progressPercent"></div>
+        </div>
+      </div>
+
+      <div class="setup-steps" *ngIf="setupSteps.length > 0">
+        <article
+          class="setup-step"
+          *ngFor="let step of setupSteps; trackBy: trackByStep"
+          [class.is-completed]="step.completed"
+          [class.is-current]="isCurrentStep(step)"
+        >
+          <div class="setup-step-index">{{ getStepNumber(step) }}</div>
+          <div class="setup-step-content">
+            <div class="setup-step-header">
+              <strong>{{ step.label }}</strong>
+              <span class="badge" [class.badge-active]="step.completed" [class.badge-inactive]="!step.completed">
+                {{ step.completed ? 'Listo' : (isCurrentStep(step) ? 'Actual' : 'Pendiente') }}
+              </span>
+            </div>
+            <p>{{ step.description }}</p>
+          </div>
+        </article>
+      </div>
+
+      <div class="hero-stats" *ngIf="setupStatus as status">
+        <div class="stat-card">
+          <strong>{{ status.summary.active_credentials }}</strong>
+          <span>API keys activas</span>
+        </div>
+        <div class="stat-card">
+          <strong>{{ status.summary.tested_credentials }}</strong>
+          <span>API keys probadas</span>
+        </div>
+        <div class="stat-card">
+          <strong>{{ status.summary.mcp_tools }}</strong>
+          <span>MCP activas</span>
+        </div>
+        <div class="stat-card">
+          <strong>{{ status.summary.whatsapp_sessions }}</strong>
+          <span>Sesiones WhatsApp</span>
+        </div>
+      </div>
+
+      <div class="hint-box">
+        <strong>Ruta recomendada para crear el agente</strong>
+        <p>1) registra y prueba una API key, 2) crea una MCP como "Cartera Admin", 3) vincula la credencial al agente, 4) activa el agente y 5) ejecuta el playground con las herramientas marcadas.</p>
+      </div>
+    </article>
+
+    <section class="content-grid">
+      <article class="card">
+        <div class="section-header">
+          <div>
+            <h2>Paso 1. Mi API key</h2>
+            <p>La credencial queda asociada al usuario autenticado, no a otro usuario designado.</p>
+          </div>
+          <button type="button" class="btn btn-primary" (click)="openCreateCredentialModal()">Nueva API key</button>
+        </div>
+
+        <div class="provider-list provider-tiles" *ngIf="providers.length > 0">
+          <button
+            type="button"
+            class="provider-tile"
+            *ngFor="let provider of providers; trackBy: trackByProvider"
+            [ngClass]="getProviderToneClass(provider)"
+            (click)="openCreateCredentialModal(provider.id)"
+          >
+            <span class="provider-tile__header">
+              <strong>{{ provider.name }}</strong>
+              <span class="badge" [class.badge-active]="provider.is_active" [class.badge-inactive]="!provider.is_active">
+                {{ provider.is_active ? 'Disponible' : 'Inactivo' }}
+              </span>
+            </span>
+            <span class="provider-tile__meta">{{ provider.driver }}</span>
+            <small>{{ getProviderSummary(provider) }}</small>
+          </button>
+        </div>
+
+        <div class="hint-box" *ngIf="credentials.length === 0">
+          <strong>Aun no tienes API keys registradas</strong>
+          <p>Crea una llave propia, pruébala y luego selecciónala para activar el agente.</p>
+        </div>
+
+        <div class="credential-list" *ngIf="credentials.length > 0">
+          <article class="credential-card" *ngFor="let credential of credentials; trackBy: trackByCredential">
+            <div class="credential-header">
+              <div>
+                <h3>{{ credential.alias || credential.provider_name || 'API key' }}</h3>
+                <small>{{ credential.provider_name || '-' }} · {{ credential.api_key_masked }}</small>
+              </div>
+              <div class="actions">
+                <span class="badge" [class.badge-active]="credential.is_active" [class.badge-inactive]="!credential.is_active">
+                  {{ credential.is_active ? 'Activa' : 'Inactiva' }}
+                </span>
+                <span class="badge" [ngClass]="getCredentialStatusClass(credential)">
+                  {{ getCredentialStatusLabel(credential) }}
+                </span>
+              </div>
+            </div>
+
+            <p class="credential-message">{{ credential.last_test_message || 'Aun no has ejecutado una prueba de conexion.' }}</p>
+
+            <div class="actions">
+              <button type="button" class="btn btn-small btn-secondary" (click)="openEditCredentialModal(credential)">Editar</button>
+              <button
+                type="button"
+                class="btn btn-small btn-primary"
+                [disabled]="testingCredentialId === credential.id"
+                (click)="testCredential(credential)"
+              >
+                {{ testingCredentialId === credential.id ? 'Probando...' : 'Probar' }}
+              </button>
+              <button
+                type="button"
+                class="btn btn-small btn-danger"
+                [disabled]="deletingCredentialId === credential.id"
+                (click)="deleteCredential(credential)"
+              >
+                {{ deletingCredentialId === credential.id ? 'Eliminando...' : 'Eliminar' }}
+              </button>
+            </div>
+          </article>
+        </div>
+
+        <article class="result-card" *ngIf="credentialTestResult as testResult">
+          <div class="result-header">
+            <h3>Resultado de prueba de API key</h3>
+            <span class="badge" [class.badge-active]="testResult.ok" [class.badge-inactive]="!testResult.ok">
+              {{ testResult.ok ? 'Correcta' : 'Con error' }}
+            </span>
+          </div>
+
+          <p>{{ getCredentialTestMessage() }}</p>
+
+          <div class="result-metadata">
+            <span class="badge badge-inactive">
+              {{ testResult.credential.provider_name || 'Proveedor' }}
+            </span>
+            <span class="badge badge-inactive">
+              {{ testResult.credential.alias || testResult.credential.api_key_masked }}
+            </span>
+            <span class="badge" [class.badge-active]="testResult.credential.last_test_status === 'success'" [class.badge-inactive]="testResult.credential.last_test_status !== 'success'">
+              {{ testResult.credential.last_test_status || 'Sin estado' }}
+            </span>
+          </div>
+
+          <details>
+            <summary>Ver respuesta del servicio</summary>
+            <pre class="preview-text">{{ testResult.result | json }}</pre>
+          </details>
+        </article>
+      </article>
+
+      <article class="card">
+        <div class="section-header">
+          <div>
+            <h2>Paso 2. Vincular y activar</h2>
+            <p>Selecciona qué credencial usará el agente y qué sesiones de WhatsApp puede consumir. Para pruebas admin, la MCP activa podra consultar toda la cartera disponible.</p>
+          </div>
+          <span class="badge badge-inactive">{{ currentCredentialLabel }}</span>
+        </div>
+
+        <form [formGroup]="agentForm" (ngSubmit)="saveAgentSetting()" class="form-grid">
+          <label for="agent-credential">API key para el agente</label>
+          <select id="agent-credential" formControlName="provider_credential_id">
+            <option [ngValue]="null">Sin seleccionar</option>
+            <option *ngFor="let credential of credentials; trackBy: trackByCredential" [ngValue]="credential.id">
+              {{ getCredentialLabel(credential) }}
+            </option>
+          </select>
+
+          <label for="agent-channel">Canal principal</label>
+          <select id="agent-channel" formControlName="preferred_channel">
+            <option *ngFor="let channel of channels" [value]="channel.key">
+              {{ channel.label }}
+            </option>
+          </select>
+
+          <label class="checkbox-row">
+            <input type="checkbox" formControlName="agent_enabled" />
+            Habilitar agente para este usuario
+          </label>
+
+          <div class="option-section">
+            <div class="mini-header">
+              <div>
+                <h3>WhatsApp habilitado</h3>
+                <p>
+                  {{ isWhatsappChannelSelected()
+                    ? 'El canal principal es WhatsApp, por eso aqui defines las sesiones que el agente podra consumir.'
+                    : 'Aunque el canal principal no sea WhatsApp, aqui puedes dejar sesiones listas para cuando el agente las necesite.' }}
+                </p>
+              </div>
+              <span class="badge badge-inactive">{{ getConnectedSessionCount() }} conectadas</span>
+            </div>
+
+            <div class="session-access-grid" *ngIf="whatsappSessions.length > 0; else noWhatsappSessions">
+              <label class="session-access-card" *ngFor="let session of whatsappSessions; trackBy: trackBySession">
+                <input
+                  type="checkbox"
+                  [checked]="isWhatsappSessionAllowed(session.id)"
+                  (change)="toggleWhatsappSessionAccess(session.id, $any($event.target).checked)"
+                />
+                <div>
+                  <strong>{{ session.name }}</strong>
+                  <small>{{ session.phone_number || session.push_name || 'Sin numero sincronizado' }}</small>
+                  <span class="badge" [class.badge-active]="session.status === 'connected'" [class.badge-inactive]="session.status !== 'connected'">
+                    {{ session.status === 'connected' ? 'Conectado' : 'Disponible' }}
+                  </span>
+                </div>
+              </label>
+            </div>
+
+            <ng-template #noWhatsappSessions>
+              <div class="hint-box">
+                <strong>No hay sesiones de WhatsApp disponibles</strong>
+                <p>Primero conecta una sesión en el módulo de WhatsApp para poder habilitarla al agente.</p>
+              </div>
+            </ng-template>
+
+            <div class="selected-sessions" *ngIf="getSelectedWhatsappSessionsSummary().length > 0">
+              <span class="badge badge-active" *ngFor="let session of getSelectedWhatsappSessionsSummary()">
+                {{ session.name }}
+              </span>
+            </div>
+          </div>
+
+          <div class="form-actions">
+            <button type="submit" class="btn btn-primary" [disabled]="savingAccess">
+              {{ savingAccess ? 'Guardando...' : 'Guardar vinculacion' }}
+            </button>
+          </div>
+        </form>
+      </article>
+
+      <article class="card span-2">
+        <div class="section-header">
+          <div>
+            <h2>Paso 3. Herramientas MCP</h2>
+            <p>Las herramientas viven en el mismo backend principal y exponen solo los datos necesarios para la IA. Toda MCP activa creada aqui entra al runtime real del agente.</p>
+          </div>
+          <button type="button" class="btn btn-primary" (click)="openCreateMcpToolModal()">Nueva MCP</button>
+        </div>
+
+        <div class="hint-box">
+          <strong>Plantilla recomendada para admin</strong>
+          <p>Usa "Cartera Admin" para probar clientes activos, estados de lote, cuotas pendientes o vencidas y telefonos disponibles desde una sola herramienta estructurada.</p>
+        </div>
+
+        <div class="hint-box" *ngIf="mcpTools.length === 0">
+          <strong>No hay herramientas MCP configuradas</strong>
+          <p>Crea al menos una herramienta para que el agente pueda consultar cartera, estados o cuotas.</p>
+        </div>
+
+        <div class="mcp-grid" *ngIf="mcpTools.length > 0">
+          <article class="mcp-card" *ngFor="let tool of mcpTools; trackBy: trackByMcpTool">
+            <div class="mcp-header">
+              <div>
+                <h3>{{ tool.name }}</h3>
+                <small>{{ tool.dataset_name }}</small>
+              </div>
+              <span class="badge" [class.badge-active]="tool.is_active" [class.badge-inactive]="!tool.is_active">
+                {{ tool.is_active ? 'Activa' : 'Inactiva' }}
+              </span>
+            </div>
+
+            <p>{{ tool.description || 'Herramienta MCP disponible para el agente.' }}</p>
+
+            <div class="table-tag-list">
+              <span class="badge badge-inactive" *ngFor="let field of tool.allowed_fields | slice:0:4">
+                {{ getFieldLabel(field) }}
+              </span>
+            </div>
+
+            <div class="table-tag-list">
+              <span class="badge badge-inactive">{{ tool.tool_kind === 'action' ? 'Accion' : 'Consulta' }}</span>
+              <span class="badge badge-inactive">{{ getToolChannelSummary(tool) }}</span>
+            </div>
+
+            <div class="mcp-actions">
+              <button type="button" class="btn btn-small btn-secondary" (click)="openEditMcpToolModal(tool)">Editar</button>
+              <button
+                *ngIf="supportsMcpPreview(tool)"
+                type="button"
+                class="btn btn-small btn-primary"
+                (click)="openMcpPreview(tool)"
+              >
+                Probar MCP
+              </button>
+              <button
+                type="button"
+                class="btn btn-small btn-danger"
+                [disabled]="deletingMcpToolId === tool.id"
+                (click)="deleteMcpTool(tool)"
+              >
+                {{ deletingMcpToolId === tool.id ? 'Eliminando...' : 'Eliminar' }}
+              </button>
+            </div>
+          </article>
+        </div>
+      </article>
+
+      <article class="card span-2">
+        <div class="section-header">
+          <div>
+            <h2>Paso 4. Playground simple</h2>
+            <p>Prueba el agente con un prompt directo y selecciona exactamente qué herramientas podrá usar. Si marcas una MCP activa creada aqui, el orquestador podra invocarla realmente.</p>
+          </div>
+          <div class="hero-badges">
+            <span class="badge" [class.badge-active]="setting?.agent_enabled" [class.badge-inactive]="!setting?.agent_enabled">
+              {{ setting?.agent_enabled ? 'Listo para probar' : 'Primero activa el agente' }}
+            </span>
+          </div>
+        </div>
+
+        <div *ngIf="playgroundError" class="alert alert-error">{{ playgroundError }}</div>
+
+        <div class="playground-layout">
+          <form [formGroup]="playgroundForm" (ngSubmit)="runPlayground()" class="playground-form">
+            <label for="playground-session">Session ID opcional</label>
+            <input id="playground-session" type="text" formControlName="session_id" placeholder="chat-123 o contexto manual" />
+
+            <label for="playground-channel">Canal de la prueba</label>
+            <select id="playground-channel" formControlName="channel">
+              <option *ngFor="let channel of channels" [value]="channel.key">
+                {{ channel.label }}
+              </option>
+            </select>
+
+            <label for="playground-prompt">Prompt *</label>
+            <textarea
+              id="playground-prompt"
+              rows="6"
+              formControlName="prompt"
+              placeholder="Ej: Resume la situación del cliente, identifica riesgo y dime si conviene escribir por WhatsApp."
+            ></textarea>
+
+            <div class="option-section">
+              <div class="mini-header">
+                <div>
+                  <h3>Herramientas disponibles</h3>
+                  <p>Marca solo las que quieras exponer durante esta prueba.</p>
+                </div>
+                <div class="actions">
+                  <button type="button" class="btn btn-small btn-ghost" (click)="selectAllPlaygroundTools()">Todas</button>
+                  <button type="button" class="btn btn-small btn-ghost" (click)="clearPlaygroundToolSelection()">Ninguna</button>
+                </div>
+              </div>
+
+              <div class="choice-grid flow-choice-grid" *ngIf="runtimeTools.length > 0; else noRuntimeTools">
+                <label class="checkbox-row compact-row" *ngFor="let tool of runtimeTools; trackBy: trackByRuntimeTool">
+                  <input
+                    type="checkbox"
+                    [checked]="isPlaygroundToolSelected(tool.name)"
+                    [disabled]="!isRuntimeToolCompatibleWithSelectedChannel(tool)"
+                    (change)="togglePlaygroundTool(tool.name, $any($event.target).checked)"
+                  />
+                  <span>
+                    <strong>{{ tool.name }}</strong>
+                    <small>{{ tool.description }}</small>
+                    <small>Canales: {{ getToolChannelSummary(tool) }}</small>
+                  </span>
+                </label>
+              </div>
+
+              <ng-template #noRuntimeTools>
+                <div class="hint-box">
+                  <strong>No hay herramientas runtime disponibles</strong>
+                  <p>Configura una MCP activa para empezar a probar consultas del agente.</p>
+                </div>
+              </ng-template>
+            </div>
+
+            <div class="form-actions">
+              <button type="submit" class="btn btn-primary" [disabled]="runningPlayground">
+                {{ runningPlayground ? 'Ejecutando...' : 'Ejecutar playground' }}
+              </button>
+            </div>
+          </form>
+
+          <section class="playground-result-panel">
+            <div class="state-card" *ngIf="!playgroundResult">
+              <strong>Resultado de prueba</strong>
+              <p>Cuando ejecutes el playground verás aquí la respuesta final del agente, el modelo usado y las herramientas invocadas.</p>
+            </div>
+
+            <article class="result-card" *ngIf="playgroundResult">
+              <div class="result-header">
+                <h3>Respuesta del agente</h3>
+                <span class="badge badge-active">{{ playgroundResult.model || 'sin modelo' }}</span>
+              </div>
+
+              <p>{{ playgroundResult.response }}</p>
+
+              <div class="result-metadata">
+                <span class="badge badge-inactive">Run {{ playgroundResult.run_id }}</span>
+                <span class="badge badge-inactive">Canal {{ getChannelLabel(playgroundResult.channel) }}</span>
+                <span class="badge badge-inactive">{{ playgroundResult.execution_time_ms }} ms</span>
+                <span class="badge badge-inactive" *ngIf="playgroundResult.session_id">Session {{ playgroundResult.session_id }}</span>
+              </div>
+
+              <div class="table-tag-list" *ngIf="playgroundResult.tools_used.length > 0">
+                <span class="badge badge-active" *ngFor="let tool of playgroundResult.tools_used">{{ tool }}</span>
+              </div>
+
+              <section class="preview-result" *ngIf="playgroundResult.tool_executions.length > 0">
+                <div class="mini-header">
+                  <strong>Herramientas MCP utilizadas</strong>
+                  <span>{{ playgroundResult.tool_executions.length }} ejecucion(es)</span>
+                </div>
+
+                <article class="preview-card" *ngFor="let execution of playgroundResult.tool_executions">
+                  <div class="result-header">
+                    <h3>{{ execution.tool_name }}</h3>
+                    <span class="badge" [class.badge-active]="execution.status === 'success'" [class.badge-inactive]="execution.status !== 'success'">
+                      {{ execution.status === 'success' ? 'Correcta' : execution.status }}
+                    </span>
+                  </div>
+
+                  <div class="result-metadata">
+                    <span class="badge badge-inactive">{{ execution.execution_time_ms }} ms</span>
+                  </div>
+
+                  <details>
+                    <summary>Ver argumentos enviados</summary>
+                    <pre class="preview-text">{{ execution.arguments | json }}</pre>
+                  </details>
+
+                  <details>
+                    <summary>Ver resultado recibido</summary>
+                    <pre class="preview-text">{{ execution.result | json }}</pre>
+                  </details>
+                </article>
+              </section>
+
+              <details>
+                <summary>Ver token usage</summary>
+                <pre class="preview-text">{{ playgroundResult.token_usage | json }}</pre>
+              </details>
+            </article>
+          </section>
+        </div>
+      </article>
+    </section>
+  </ng-container>
+
+  <app-modal
+    [isOpen]="showMcpPreviewModal"
+    [isWide]="true"
+    title="Vista previa de MCP: {{ selectedPreviewTool?.name }}"
+    description="Prueba la herramienta y confirma exactamente qué información podrá consultar la IA."
+    (onClose)="closeMcpPreviewModal()"
+  >
+    <div *ngIf="selectedPreviewTool as previewTool" class="modal-body">
+      <div class="preview-card">
+        <strong>Campos visibles para la IA</strong>
+        <div class="table-tag-list">
+          <span class="badge badge-inactive" *ngFor="let field of previewTool.allowed_fields">
+            {{ getFieldLabel(field) }}
+          </span>
+        </div>
+      </div>
+
+      <form [formGroup]="mcpPreviewForm" class="preview-form" (ngSubmit)="runMcpPreview(previewTool)">
+        <div class="preview-grid">
+          <label>
+            Búsqueda libre
+            <input type="text" formControlName="search" placeholder="Nombre, telefono, lote o contrato" />
+          </label>
+
+          <label>
+            Cantidad de resultados
+            <input type="number" min="1" max="200" formControlName="limit" />
+          </label>
+        </div>
+
+        <div class="preview-grid" *ngIf="previewTool.allowed_filters.length > 0">
+          <label *ngIf="supportsPreviewFilter('client_status')">
+            Estado del cliente
+            <select formControlName="client_status">
+              <option value="">Cualquier estado</option>
+              <option *ngFor="let status of clientStatusList" [value]="status">
+                {{ clientStatusDictionary[status]?.label ?? status }}
+              </option>
+            </select>
+          </label>
+
+          <label *ngIf="supportsPreviewFilter('lot_status')">
+            Estado del lote
+            <select formControlName="lot_status">
+              <option value="">Cualquier estado</option>
+              <option *ngFor="let status of lotStatusList" [value]="status">
+                {{ lotStatusDictionary[status]?.label ?? status }}
+              </option>
+            </select>
+          </label>
+        </div>
+
+        <div class="preview-toggle-row">
+          <label class="checkbox-row" *ngIf="supportsPreviewFilter('has_phone')">
+            <input type="checkbox" formControlName="has_phone" />
+            Solo clientes con telefono
+          </label>
+
+          <label class="checkbox-row" *ngIf="supportsPreviewFilter('has_pending_installments')">
+            <input type="checkbox" formControlName="has_pending_installments" />
+            Solo con cuotas pendientes
+          </label>
+
+          <label class="checkbox-row" *ngIf="supportsPreviewFilter('has_overdue_installments')">
+            <input type="checkbox" formControlName="has_overdue_installments" />
+            Solo con cuotas vencidas
+          </label>
+        </div>
+
+        <div class="form-actions">
+          <button type="submit" class="btn btn-primary" [disabled]="previewingMcpToolId === previewTool.id">
+            {{ previewingMcpToolId === previewTool.id ? 'Probando...' : 'Probar herramienta' }}
+          </button>
+          <button type="button" class="btn btn-ghost" (click)="closeMcpPreviewModal()">Cerrar</button>
+        </div>
+      </form>
+
+      <div *ngIf="mcpPreview" class="preview-result">
+        <div class="mini-header">
+          <strong>Resultados ({{ mcpPreview.count }})</strong>
+          <span *ngIf="mcpPreview.phone_targets.length > 0">{{ mcpPreview.phone_targets.length }} telefono(s) disponibles</span>
+        </div>
+
+        <div class="table-wrapper" *ngIf="mcpPreview.count > 0">
+          <table>
+            <thead>
+              <tr>
+                <th *ngFor="let field of previewTool.allowed_fields">{{ getFieldLabel(field) }}</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let record of mcpPreview.records">
+                <td *ngFor="let field of previewTool.allowed_fields">{{ record[field] ?? '-' }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+        <details>
+          <summary>Ver texto que recibirá la IA</summary>
+          <pre class="preview-text">{{ mcpPreview.text }}</pre>
+        </details>
+      </div>
+    </div>
+  </app-modal>
+
+  <app-modal
+    [isOpen]="showCredentialModal"
+    title="{{ selectedCredentialId ? 'Editar API key' : 'Nueva API key' }}"
+    description="La API key se guarda para el usuario autenticado y se probará desde el backend principal."
+    (onClose)="closeCredentialModal()"
+  >
+    <form [formGroup]="credentialForm" (ngSubmit)="saveCredential()" class="form-grid modal-form">
+      <div class="option-section provider-picker" *ngIf="providers.length > 0">
+        <h3>Proveedor de IA</h3>
+        <p>Elige el proveedor para esta API key. Puedes registrar una credencial distinta por cada proveedor.</p>
+        <div class="provider-list provider-tiles provider-tiles-compact">
+          <button
+            type="button"
+            class="provider-tile"
+            *ngFor="let provider of providers; trackBy: trackByProvider"
+            [ngClass]="[getProviderToneClass(provider), isCredentialProviderSelected(provider.id) ? 'provider-tile-selected' : '']"
+            (click)="selectCredentialProvider(provider.id)"
+          >
+            <span class="provider-tile__header">
+              <strong>{{ provider.name }}</strong>
+            </span>
+            <span class="provider-tile__meta">{{ provider.driver }}</span>
+            <small>{{ getProviderSummary(provider) }}</small>
+          </button>
+        </div>
+      </div>
+
+      <label for="credential-provider">Proveedor *</label>
+      <select id="credential-provider" formControlName="provider_id">
+        <option *ngFor="let provider of providers; trackBy: trackByProvider" [ngValue]="provider.id">{{ provider.name }}</option>
+      </select>
+
+      <label for="credential-alias">Alias</label>
+      <input id="credential-alias" type="text" formControlName="alias" placeholder="Key principal" />
+
+      <label for="credential-api-key">API key {{ selectedCredentialId ? '(solo si vas a cambiarla)' : '*' }}</label>
+      <textarea id="credential-api-key" rows="4" formControlName="api_key"></textarea>
+
+      <label class="checkbox-row">
+        <input type="checkbox" formControlName="is_active" />
+        API key activa
+      </label>
+
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary" [disabled]="savingCredential">
+          {{ savingCredential ? 'Guardando...' : (selectedCredentialId ? 'Guardar API key' : 'Crear API key') }}
+        </button>
+        <button type="button" class="btn btn-ghost" (click)="closeCredentialModal()">Cancelar</button>
+      </div>
+    </form>
+  </app-modal>
+
+  <app-modal
+    [isOpen]="showMcpToolModal"
+    [isWide]="true"
+    title="{{ selectedMcpToolId ? 'Editar herramienta MCP' : 'Nueva herramienta MCP' }}"
+    description="Crea herramientas de forma guiada para que el agente consulte cartera, clientes y cuotas desde el backend principal."
+    (onClose)="closeMcpToolModal()"
+  >
+    <form [formGroup]="mcpToolForm" (ngSubmit)="saveMcpTool()" class="form-grid modal-form">
+      <div class="option-section">
+        <h3>Plantilla</h3>
+        <p>Empieza con una base lista para usar y ajusta solo lo necesario.</p>
+        <div class="preset-row">
+          <button type="button" class="btn btn-small" [class.btn-primary]="currentMcpPreset === 'clients'" (click)="applyMcpPreset('clients')">Clientes</button>
+          <button type="button" class="btn btn-small" [class.btn-primary]="currentMcpPreset === 'messaging'" (click)="applyMcpPreset('messaging')">WhatsApp</button>
+          <button type="button" class="btn btn-small" [class.btn-primary]="currentMcpPreset === 'whatsapp_action'" (click)="applyMcpPreset('whatsapp_action')">WhatsApp Accion</button>
+          <button type="button" class="btn btn-small" [class.btn-primary]="currentMcpPreset === 'installments'" (click)="applyMcpPreset('installments')">Cuotas</button>
+          <button type="button" class="btn btn-small" [class.btn-primary]="currentMcpPreset === 'admin_portfolio'" (click)="applyMcpPreset('admin_portfolio')">Cartera Admin</button>
+          <button type="button" class="btn btn-small" [class.btn-primary]="currentMcpPreset === 'cron_jobs'" (click)="applyMcpPreset('cron_jobs')">Cron Jobs</button>
+        </div>
+      </div>
+
+      <label for="mcp-name">Nombre *</label>
+      <input id="mcp-name" type="text" formControlName="name" placeholder="Ej: Clientes con cuotas vencidas" />
+
+      <label for="mcp-dataset">Dataset</label>
+      <select id="mcp-dataset" formControlName="dataset_key" (change)="onMcpDatasetChange()">
+        <option *ngFor="let dataset of mcpDatasets" [value]="dataset.key">{{ dataset.name }}</option>
+      </select>
+
+      <div class="option-section" *ngIf="selectedMcpDataset">
+        <h3>Canales permitidos</h3>
+        <div class="choice-grid">
+          <label class="checkbox-row compact-row" *ngFor="let channel of channels">
+            <input
+              type="checkbox"
+              [checked]="isMcpChannelSelected(channel.key)"
+              (change)="toggleMcpChannel(channel.key, $any($event.target).checked)"
+            />
+            <span>
+              <strong>{{ channel.label }}</strong>
+              <small>{{ channel.description }}</small>
+            </span>
+          </label>
+        </div>
+      </div>
+
+      <div class="option-section" *ngIf="selectedMcpDataset">
+        <h3>Campos visibles</h3>
+        <div class="choice-grid">
+          <label class="checkbox-row compact-row" *ngFor="let field of selectedMcpDataset.fields">
+            <input
+              type="checkbox"
+              [checked]="isMcpFieldSelected(field.key)"
+              (change)="toggleMcpField(field.key, $any($event.target).checked)"
+            />
+            <span>
+              <strong>{{ field.label }}</strong>
+              <small>{{ field.description }}</small>
+            </span>
+          </label>
+        </div>
+      </div>
+
+      <div class="option-section" *ngIf="selectedMcpDataset">
+        <h3>Filtros permitidos</h3>
+        <div class="choice-grid">
+          <label class="checkbox-row compact-row" *ngFor="let filter of selectedMcpDataset.filters">
+            <input
+              type="checkbox"
+              [checked]="isMcpFilterSelected(filter.key)"
+              (change)="toggleMcpFilter(filter.key, $any($event.target).checked)"
+            />
+            <span>
+              <strong>{{ filter.label }}</strong>
+              <small>{{ filter.type }}</small>
+            </span>
+          </label>
+        </div>
+      </div>
+
+      <div class="option-section">
+        <button type="button" class="btn btn-ghost btn-small align-start" (click)="toggleMcpAdvancedOptions()">
+          {{ showMcpAdvancedOptions ? 'Ocultar opciones avanzadas' : 'Mostrar opciones avanzadas' }}
+        </button>
+      </div>
+
+      <div class="option-section" *ngIf="showMcpAdvancedOptions">
+        <h3>Opciones avanzadas</h3>
+
+        <label for="mcp-description">Descripción</label>
+        <textarea id="mcp-description" rows="3" formControlName="description" placeholder="Explica brevemente qué hace esta herramienta"></textarea>
+
+        <label for="mcp-limit">Máximo de resultados</label>
+        <input id="mcp-limit" type="number" min="1" max="200" formControlName="max_results" />
+
+        <label class="checkbox-row">
+          <input type="checkbox" formControlName="allow_phone_targeting" />
+          Permitir acceso a teléfonos
+        </label>
+
+        <label class="checkbox-row">
+          <input type="checkbox" formControlName="is_active" />
+          Herramienta activa
+        </label>
+      </div>
+
+      <div class="form-actions">
+        <button type="submit" class="btn btn-primary" [disabled]="savingMcpTool">
+          {{ savingMcpTool ? 'Guardando...' : (selectedMcpToolId ? 'Guardar MCP' : 'Crear MCP') }}
+        </button>
+        <button type="button" class="btn btn-ghost" (click)="closeMcpToolModal()">Cancelar</button>
+      </div>
+    </form>
+  </app-modal>
+</section>

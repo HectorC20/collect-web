@@ -1,0 +1,178 @@
+<!-- Toolbar visible solo en móviles -->
+<mat-toolbar class="mobile-toolbar" *ngIf="isMobile">
+  <div class="mobile-toolbar-content">
+    <img src="/images/logo/logo.webp" alt="Logo" class="brand-logo-mobile">
+    <span class="mobile-toolbar-title">CARTERA</span>
+    <span class="spacer"></span>
+    <button mat-icon-button (click)="toggleMobileMenu()">
+      <mat-icon>{{ isMobileMenuOpen ? 'close' : 'menu' }}</mat-icon>
+    </button>
+  </div>
+</mat-toolbar>
+
+<!-- Sidebar normal (desktop) -->
+<aside class="sidebar" [class.collapsed]="isCollapsed" [class.mobile-open]="isMobileMenuOpen">
+  <div class="sidebar-header">
+    <div class="logo-container">
+      <img src="/images/logo/logo.webp" alt="Logo" class="brand-logo">
+      @if (!isCollapsed && !isMobile) {
+        <h3 class="logo-text">CARTERA</h3>
+      }
+    </div>
+    @if (!isMobile) {
+      <button class="toggle-btn" (click)="toggleSidebar()">
+        <mat-icon>{{ isCollapsed ? 'chevron_right' : 'chevron_left' }}</mat-icon>
+      </button>
+    }
+  </div>
+
+  <nav class="sidebar-nav">
+    @if (isMobile) {
+      <!-- Menú móvil con Expansion Panel -->
+      <mat-accordion class="mobile-menu-accordion" multi="false">
+        @for (item of visibleMenuItems; track item.label) {
+          @if (item.children) {
+            <mat-expansion-panel
+              class="mobile-expansion-panel"
+              [expanded]="isExpanded(item.label)"
+              (opened)="toggleMenu(item.label)"
+              (closed)="toggleMenu(item.label)"
+            >
+              <mat-expansion-panel-header class="mobile-expansion-header">
+                <mat-panel-title class="mobile-panel-title">
+                  <mat-icon>{{ item.icon }}</mat-icon>
+                  <span>{{ item.label }}</span>
+                </mat-panel-title>
+              </mat-expansion-panel-header>
+              <div class="mobile-submenu">
+                @for (sub of item.children; track sub.label) {
+                  <a
+                    [routerLink]="sub.route"
+                    routerLinkActive="active"
+                    [routerLinkActiveOptions]="{ exact: true }"
+                    class="mobile-submenu-link"
+                    (click)="closeMobileMenu()"
+                  >
+                    <mat-icon>{{ sub.icon }}</mat-icon>
+                    <span>{{ sub.label }}</span>
+                  </a>
+                }
+              </div>
+            </mat-expansion-panel>
+          } @else {
+            <a
+              [routerLink]="item.route"
+              routerLinkActive="active"
+              [routerLinkActiveOptions]="{ exact: true }"
+              class="mobile-menu-link"
+              [class.has-badge]="item.badge"
+              (click)="closeMobileMenu()"
+            >
+              <mat-icon>{{ item.icon }}</mat-icon>
+              <span>{{ item.label }}</span>
+              @if (item.badge) {
+                <span class="badge">{{ item.badge }}</span>
+              }
+            </a>
+          }
+        }
+      </mat-accordion>
+    } @else {
+      <!-- Menú desktop -->
+      <ul>
+        @for (item of visibleMenuItems; track item.label) {
+          <li>
+            @if (item.children) {
+              <div class="menu-item-wrapper">
+                <button
+                  type="button"
+                  class="menu-group-btn"
+                  [class.expanded]="isExpanded(item.label)"
+                  (click)="toggleMenu(item.label)"
+                >
+                  <mat-icon>{{ item.icon }}</mat-icon>
+                  @if (!isCollapsed) {
+                    <span class="label">{{ item.label }}</span>
+                    <mat-icon class="expand-icon">{{ isExpanded(item.label) ? 'expand_less' : 'expand_more' }}</mat-icon>
+                  }
+                </button>
+
+                @if (!isCollapsed && isExpanded(item.label) || isCollapsed) {
+                  <ul class="submenu">
+                    @for (sub of item.children; track sub.label) {
+                      <li>
+                        <a
+                          [routerLink]="sub.route"
+                          routerLinkActive="active"
+                          [routerLinkActiveOptions]="{ exact: true }"
+                          class="submenu-link"
+                        >
+                          <mat-icon>{{ sub.icon }}</mat-icon>
+                          <span>{{ sub.label }}</span>
+                        </a>
+                      </li>
+                    }
+                  </ul>
+                }
+              </div>
+            } @else {
+              <a
+                [routerLink]="item.route"
+                routerLinkActive="active"
+                [routerLinkActiveOptions]="{ exact: true }"
+                [class.has-badge]="item.badge"
+              >
+              <mat-icon>{{ item.icon }}</mat-icon>
+                @if (!isCollapsed) {
+                  <span class="label">{{ item.label }}</span>
+                }
+                @if (item.badge && !isCollapsed) {
+                  <span class="badge">{{ item.badge }}</span>
+                }
+              </a>
+            }
+          </li>
+        }
+      </ul>
+    }
+  </nav>
+
+  <div class="sidebar-footer">
+    @if (!isCollapsed && !isMobile) {
+      <div class="user-info">
+        <div class="user-avatar">
+          <mat-icon>account_circle</mat-icon>
+        </div>
+        <div class="user-details">
+          <div class="user-name">{{ userDisplayName }}</div>
+          <div class="user-role">{{ userRoleName }}</div>
+        </div>
+      </div>
+    }
+    @if (isMobile) {
+      <div class="mobile-user-section">
+        <div class="mobile-user-info">
+          <div class="mobile-user-avatar">
+            <mat-icon>account_circle</mat-icon>
+          </div>
+          <div class="mobile-user-details">
+            <div class="mobile-user-name">{{ userDisplayName }}</div>
+            <div class="mobile-user-role">{{ userRoleName }}</div>
+          </div>
+        </div>
+      </div>
+    }
+    <button (click)="logout()" class="btn-logout">
+      <mat-icon>logout</mat-icon>
+      @if (!isCollapsed && !isMobile) {
+        <span class="label">Cerrar Sesión</span>
+      }
+      @if (isMobile) {
+        <span class="label">Cerrar Sesión</span>
+      }
+    </button>
+  </div>
+</aside>
+
+<!-- Overlay para cerrar el menú móvil -->
+<div class="mobile-overlay" *ngIf="isMobile && isMobileMenuOpen" (click)="closeMobileMenu()"></div>

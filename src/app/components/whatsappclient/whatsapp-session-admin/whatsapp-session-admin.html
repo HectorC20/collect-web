@@ -1,0 +1,296 @@
+<section class="whatsapp-session-admin-container">
+  <app-page-header
+    eyebrow="Sistema"
+    title="Sesiones de WhatsApp"
+    description="Crea, vincula, asigna y administra las sesiones de WhatsApp desde un modulo separado del chat."
+  ></app-page-header>
+
+  <div class="header-stats">
+    <article class="stat-card">
+      <strong>{{ sessions().length }}</strong>
+      <span>Sesiones</span>
+    </article>
+    <article class="stat-card">
+      <strong>{{ linkedSessionsCount }}</strong>
+      <span>Vinculadas</span>
+    </article>
+    <article class="stat-card">
+      <strong>{{ pendingSessionsCount }}</strong>
+      <span>Pendientes</span>
+    </article>
+    <article class="stat-card">
+      <strong>{{ collectorUsers.length }}</strong>
+      <span>Collectors</span>
+    </article>
+  </div>
+
+  <section class="toolbar-card">
+    <div class="toolbar-actions">
+      <button type="button" class="btn btn-primary" (click)="openCreateSessionModal()">Nueva sesion</button>
+      <button type="button" class="btn btn-ghost" (click)="refresh()">Actualizar</button>
+    </div>
+
+    <form [formGroup]="searchForm" class="search-actions">
+      <input type="text" formControlName="search" placeholder="Buscar por nombre, numero o cobrador" />
+      <label class="checkbox-row">
+        <input type="checkbox" formControlName="linkedOnly" />
+        <span>Solo vinculadas</span>
+      </label>
+      <button type="button" class="btn btn-ghost" (click)="resetSearch()">Limpiar</button>
+    </form>
+  </section>
+
+  <div *ngIf="feedbackMessage()" class="alert alert-success">{{ feedbackMessage() }}</div>
+  <div *ngIf="errorMessage()" class="alert alert-error">{{ errorMessage() }}</div>
+
+  <section class="table-card">
+    <div class="table-header">
+      <div>
+        <h2>Listado de sesiones</h2>
+        <p>Primero vincula la cuenta por QR. Luego administra los usuarios vinculados de forma simple.</p>
+      </div>
+    </div>
+
+    <app-page-loader [show]="loading()" message="Cargando sesiones..."></app-page-loader>
+
+    <div *ngIf="!loading() && filteredSessions.length === 0" class="state">
+      No hay sesiones registradas con los filtros actuales.
+    </div>
+
+    <div class="table-wrapper" *ngIf="!loading() && filteredSessions.length > 0">
+      <table>
+        <thead>
+          <tr>
+            <th>Sesion</th>
+            <th>Estado</th>
+            <th>Vinculacion</th>
+            <th>WhatsApp</th>
+            <th>Usuarios vinculados</th>
+            <th>Chats</th>
+            <th>Sin leer</th>
+            <th>Ultima actividad</th>
+            <th>Acciones</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let session of filteredSessions; trackBy: trackBySession" [class.selected-row]="activeSession?.id === session.id">
+            <td>
+              <div class="identity-cell">
+                <strong>{{ session.name }}</strong>
+                <span>{{ session.push_name || session.phone_number || 'Sin numero vinculado' }}</span>
+              </div>
+            </td>
+            <td>
+              <span class="status-chip" [ngClass]="getSessionStatusClass(session.status)">
+                {{ getSessionStatusLabel(session.status) }}
+              </span>
+            </td>
+            <td>
+              <span class="link-chip" [class.link-chip--ok]="isSessionLinked(session)" [class.link-chip--pending]="!isSessionLinked(session)">
+                {{ getSessionConnectionLabel(session) }}
+              </span>
+            </td>
+            <td>{{ getSessionPhoneDisplay(session) }}</td>
+            <td>{{ getLinkedUsersSummary(session) }}</td>
+            <td>{{ session.stats.chat_count }}</td>
+            <td>{{ session.stats.unread_count }}</td>
+            <td>{{ (session.last_seen_at || session.updated_at || session.created_at) ? ((session.last_seen_at || session.updated_at || session.created_at) | date:'short') : 'Sin actividad' }}</td>
+            <td class="actions">
+              <button type="button" class="btn btn-small btn-secondary" (click)="openSessionSettingsModal(session)">Administrar</button>
+              <button *ngIf="isSessionLinked(session)" type="button" class="btn btn-small btn-ghost" (click)="disconnectSession(session)">Desconectar</button>
+              <button type="button" class="btn btn-small btn-danger" (click)="deleteSession(session)">Eliminar</button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+  <app-modal
+    [isOpen]="showCreateSessionModal()"
+    [isWide]="true"
+    [title]="currentNewSessionId ? 'Escanea el QR' : 'Crear sesion de WhatsApp'"
+    description="Primero vincula la cuenta de WhatsApp por QR. Luego la asignacion de usuarios se hace desde la administracion."
+    (onClose)="currentNewSessionId ? finishCreateSession() : closeCreateSessionModal()"
+  >
+    <div *ngIf="!currentNewSessionId; else qrSection">
+      <form [formGroup]="sessionForm" (ngSubmit)="createSession()" class="session-form">
+        <label for="name">Nombre de la sesion</label>
+        <input id="name" type="text" formControlName="name" placeholder="Ej. WhatsApp cobranza" />
+
+        <label class="checkbox-row">
+          <input type="checkbox" formControlName="ai_enabled" />
+          <span>Activar respuestas automaticas con IA</span>
+        </label>
+
+        <label class="checkbox-row">
+          <input type="checkbox" formControlName="ignore_groups" />
+          <span>Ignorar grupos</span>
+        </label>
+
+        <label class="checkbox-row">
+          <input type="checkbox" formControlName="ignore_status" />
+          <span>Ignorar historias / estados</span>
+        </label>
+
+        <div class="form-actions">
+          <button type="submit" class="btn btn-primary" [disabled]="actionLoading()">Crear y solicitar QR</button>
+        </div>
+      </form>
+    </div>
+
+    <ng-template #qrSection>
+      <div class="qr-card" *ngIf="newSession?.qr_code as qrCode; else waitingQr">
+        <img [src]="qrCode" alt="QR de WhatsApp" />
+        <p>Escanea este QR desde WhatsApp para vincular la sesion.</p>
+        <span *ngIf="newSession?.qr_expires_at as expiresAt">Expira: {{ expiresAt | date:'short' }}</span>
+        <strong class="qr-status" [class.qr-status--ok]="isSessionLinked(newSession)">
+          {{ getQrStatusText(newSession) }}
+        </strong>
+      </div>
+
+      <ng-template #waitingQr>
+        <div class="state">Cargando QR...</div>
+      </ng-template>
+
+      <div class="form-actions">
+        <button type="button" class="btn btn-ghost" (click)="refresh()">Actualizar estado</button>
+        <button type="button" class="btn btn-primary" (click)="finishCreateSession()">
+          {{ isSessionLinked(newSession) ? 'Finalizar' : 'Cancelar sesion no vinculada' }}
+        </button>
+      </div>
+    </ng-template>
+  </app-modal>
+
+  <app-modal
+    [isOpen]="showSessionSettingsModal() && !!activeSession"
+    [isWide]="true"
+    [title]="activeSession?.name || 'Administrar sesion'"
+    description="Revisa el estado de la sesion, solicita QR cuando sea necesario y administra los usuarios vinculados solo si ya esta vinculada."
+    (onClose)="closeSessionSettingsModal()"
+  >
+    <div class="session-settings-grid" *ngIf="activeSession as session">
+      <section class="info-card">
+        <div class="section-label">Configuracion</div>
+
+        <div class="form-stack">
+          <div class="state-inline" *ngIf="!isSessionLinked(session)">
+            Primero vincula la cuenta escaneando el QR. Cuando este conectada podras administrar sus usuarios vinculados.
+          </div>
+
+          <label *ngIf="isSessionLinked(session)">
+            <span>Usuario principal</span>
+            <select
+              [value]="session.user_id || 'null'"
+              (change)="updateSelectedSession({ user_id: $any($event.target).value === 'null' ? null : $any($event.target).value })"
+            >
+              <option value="null">Sin asignar</option>
+              <option *ngFor="let user of primaryAssignableUsers" [value]="user.id">{{ user.full_name }} ({{ user.email }})</option>
+            </select>
+          </label>
+
+          <div *ngIf="isSessionLinked(session)" class="form-stack">
+            <span>Usuarios vinculados</span>
+
+            <div class="state-inline" *ngIf="getLinkedUsers(session).length === 0">
+              Aun no hay usuarios vinculados a esta sesion.
+            </div>
+
+            <ul class="linked-users-list" *ngIf="getLinkedUsers(session).length > 0">
+              <li class="linked-user-row" *ngFor="let linkedUser of getLinkedUsers(session)">
+                <div class="linked-user-main">
+                  <strong>{{ linkedUser.full_name }}</strong>
+                  <span>{{ linkedUser.email }}</span>
+                </div>
+                <div class="linked-user-meta">
+                  <span class="linked-user-role">{{ linkedUser.is_primary ? 'Principal' : (linkedUser.role_name || 'Vinculado') }}</span>
+                  <button type="button" class="btn btn-small btn-danger" (click)="unlinkUserFromSession(session, linkedUser.id)">
+                    Desvincular
+                  </button>
+                </div>
+              </li>
+            </ul>
+
+            <label *ngIf="getAvailableUsersToLink(session).length > 0">
+              <span>Vincular otro usuario</span>
+              <select
+                [value]="selectedLinkedUserId || 'null'"
+                (change)="selectedLinkedUserId = $any($event.target).value === 'null' ? null : $any($event.target).value"
+              >
+                <option value="null">Selecciona un usuario</option>
+                <option *ngFor="let user of getAvailableUsersToLink(session)" [value]="user.id">
+                  {{ user.full_name }} ({{ user.email }})
+                </option>
+              </select>
+            </label>
+
+            <button
+              *ngIf="getAvailableUsersToLink(session).length > 0"
+              type="button"
+              class="btn btn-secondary"
+              [disabled]="!selectedLinkedUserId || actionLoading()"
+              (click)="linkUserToSession(session)"
+            >
+              Vincular usuario
+            </button>
+          </div>
+
+          <label class="checkbox-row">
+            <input type="checkbox" [checked]="session.ai_enabled" (change)="updateSelectedSession({ ai_enabled: $any($event.target).checked })" />
+            <span>IA habilitada</span>
+          </label>
+
+          <label class="checkbox-row">
+            <input type="checkbox" [checked]="session.ignore_groups" (change)="updateSelectedSession({ ignore_groups: $any($event.target).checked })" />
+            <span>Ignorar grupos</span>
+          </label>
+
+          <label class="checkbox-row">
+            <input type="checkbox" [checked]="session.ignore_status" (change)="updateSelectedSession({ ignore_status: $any($event.target).checked })" />
+            <span>Ignorar historias</span>
+          </label>
+        </div>
+
+        <div class="form-actions">
+          <button type="button" class="btn btn-primary" (click)="connectSession(session)" [disabled]="actionLoading()">Generar QR</button>
+          <button type="button" class="btn btn-ghost" (click)="disconnectSession(session)" [disabled]="actionLoading()">Desconectar</button>
+        </div>
+      </section>
+
+      <section class="info-card">
+        <div class="section-label">Estado actual</div>
+
+        <div class="qr-card" *ngIf="session.qr_code; else sessionInfoOnly">
+          <img [src]="session.qr_code" alt="QR de WhatsApp" />
+          <p>Escanea este QR para restaurar o enlazar la sesion.</p>
+          <span *ngIf="session.qr_expires_at">Expira: {{ session.qr_expires_at | date:'short' }}</span>
+          <strong class="qr-status" [class.qr-status--ok]="isSessionLinked(session)">
+            {{ getQrStatusText(session) }}
+          </strong>
+        </div>
+
+        <ng-template #sessionInfoOnly>
+          <div class="state-inline">{{ isSessionLinked(session) ? 'La sesion esta vinculada y operativa.' : 'La sesion requiere vinculacion o reconexion.' }}</div>
+        </ng-template>
+
+        <div class="info-grid">
+          <div class="info-item">
+            <span>Estado</span>
+            <strong>{{ getSessionStatusLabel(session.status) }}</strong>
+          </div>
+          <div class="info-item">
+            <span>Vinculacion</span>
+            <strong>{{ getSessionConnectionLabel(session) }}</strong>
+          </div>
+          <div class="info-item">
+            <span>WhatsApp</span>
+            <strong>{{ getSessionPhoneDisplay(session) }}</strong>
+          </div>
+          <div class="info-item">
+            <span>Usuarios vinculados</span>
+            <strong>{{ getLinkedUsersSummary(session) }}</strong>
+          </div>
+        </div>
+      </section>
+    </div>
+  </app-modal>
+</section>

@@ -1,0 +1,60 @@
+<section class="report-card">
+  <header class="report-card__header">
+    <div>
+      <h2>Reporte de Datos General</h2>
+      <p>Conserva la misma estructura del Excel importado, pero con datos actualizados y una tabla previa de clientes.</p>
+    </div>
+    <div class="report-card__buttons">
+      <button type="button" class="btn btn-secondary" [disabled]="exportingPdf" (click)="exportPdf()">
+        {{ exportingPdf ? 'Exportando...' : 'Exportar PDF' }}
+      </button>
+      <button type="button" class="btn btn-primary" [disabled]="exporting" (click)="exportReport()">
+        {{ exporting ? 'Exportando...' : 'Exportar XLSX' }}
+      </button>
+    </div>
+  </header>
+
+  <div class="table-summary">
+    <span>{{ reportState.generalTotal() }} fila(s) previas para exportar</span>
+  </div>
+
+  <div class="table-wrapper">
+    <table class="preview-table">
+      <thead>
+        <tr>
+          <th>Cliente</th>
+          <th>DNI</th>
+          <th>Estado Cliente</th>
+          <th>Estado Lote</th>
+          <th>Tipo Venta</th>
+          <th>MZ</th>
+          <th>Lote</th>
+          <th>Cod. Lote</th>
+          <th>Asignado</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (row of reportState.generalRows(); track row.id + '-' + (row.contractCode ?? row.lotCode ?? $index)) {
+          <tr>
+            <td>{{ row.fullName || '-' }}</td>
+            <td>{{ row.dni || '-' }}</td>
+            <td>{{ row.clientStatus || '-' }}</td>
+            <td>{{ row.lotStatus || '-' }}</td>
+            <td>{{ row.saleType || '-' }}</td>
+            <td>{{ row.block || '-' }}</td>
+            <td>{{ row.lot || '-' }}</td>
+            <td>{{ row.lotCode || '-' }}</td>
+            <td>{{ row.assignedUserName || '-' }}</td>
+          </tr>
+        } @empty {
+          <tr>
+            <td colspan="9" class="empty-state">No hay clientes que coincidan con los filtros actuales.</td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  </div>
+
+  <div *ngIf="feedback" class="alert alert-success">{{ feedback }}</div>
+  <div *ngIf="error" class="alert alert-error">{{ error }}</div>
+</section>

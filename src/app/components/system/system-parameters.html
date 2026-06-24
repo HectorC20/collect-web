@@ -1,0 +1,102 @@
+<section class="system-parameters-container">
+  <section class="search-card">
+    <form [formGroup]="searchForm" (ngSubmit)="search()">
+      <label for="search">Buscar</label>
+      <div class="search-actions">
+        <input id="search" type="text" formControlName="search" placeholder="Grupo, clave, valor o tipo" />
+        <button type="submit" class="btn btn-primary">Filtrar</button>
+        <button type="button" class="btn btn-ghost" (click)="resetSearch()">Limpiar</button>
+      </div>
+    </form>
+  </section>
+
+  <section class="content-grid">
+    <article class="form-card">
+      <h2>{{ isEditing() ? 'Editar parámetro' : 'Crear parámetro' }}</h2>
+
+      <div *ngIf="feedback" class="alert alert-success">{{ feedback }}</div>
+      <div *ngIf="error" class="alert alert-error">{{ error }}</div>
+
+      <form [formGroup]="parameterForm" (ngSubmit)="save()" class="parameter-form">
+        <label for="group">Grupo *</label>
+        <select id="group" formControlName="group" (change)="onGroupSelectionChange()">
+          <option *ngFor="let group of groupOptions" [value]="group">{{ group }}</option>
+          <option value="__new__">+ Nuevo grupo</option>
+        </select>
+
+        <ng-container *ngIf="isNewGroupSelected()">
+          <label for="customGroup">Nuevo grupo *</label>
+          <input
+            id="customGroup"
+            type="text"
+            formControlName="customGroup"
+            placeholder="Ejemplo: cobranza, ui, integración"
+          />
+        </ng-container>
+
+        <label for="key">Clave *</label>
+        <input id="key" type="text" formControlName="key" />
+
+        <label for="type">Tipo *</label>
+        <select id="type" formControlName="type">
+          <option *ngFor="let type of typeOptions" [value]="type">{{ type }}</option>
+        </select>
+
+        <label for="value">Valor *</label>
+        <textarea id="value" rows="3" formControlName="value"></textarea>
+
+        <label for="description">Descripción</label>
+        <textarea id="description" rows="2" formControlName="description"></textarea>
+
+        <div class="form-actions">
+          <button type="submit" class="btn btn-primary" [disabled]="saving">
+            {{ saving ? 'Guardando...' : (isEditing() ? 'Guardar cambios' : 'Crear parámetro') }}
+          </button>
+          <button type="button" class="btn btn-ghost" (click)="startCreate()">Cancelar</button>
+        </div>
+      </form>
+    </article>
+
+    <article class="table-card">
+      <h2>Listado de parámetros</h2>
+
+      <app-page-loader [show]="loading" message="Cargando parámetros..."></app-page-loader>
+      <div *ngIf="!loading && parameters.length === 0" class="state">No hay parámetros registrados.</div>
+
+      <div class="table-wrapper" *ngIf="!loading && parameters.length > 0">
+        <table>
+          <thead>
+            <tr>
+              <th>Grupo</th>
+              <th>Clave</th>
+              <th>Tipo</th>
+              <th>Valor</th>
+              <th>Descripción</th>
+              <th>Acciones</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let parameter of parameters; trackBy: trackById">
+              <td>{{ parameter.group }}</td>
+              <td>{{ parameter.key }}</td>
+              <td>{{ parameter.type }}</td>
+              <td class="value-cell">{{ parameter.value }}</td>
+              <td>{{ parameter.description || '-' }}</td>
+              <td class="actions">
+                <button type="button" class="btn btn-small btn-secondary" (click)="edit(parameter)">Editar</button>
+                <button
+                  type="button"
+                  class="btn btn-small btn-danger"
+                  [disabled]="deletingId === parameter.id"
+                  (click)="remove(parameter)"
+                >
+                  {{ deletingId === parameter.id ? 'Eliminando...' : 'Eliminar' }}
+                </button>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </article>
+  </section>
+</section>

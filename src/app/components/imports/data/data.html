@@ -1,0 +1,238 @@
+<section class="imports-page">
+  <section class="search-card">
+    <form [formGroup]="searchForm" (ngSubmit)="search()">
+      <label for="searchData">Buscar proceso</label>
+      <div class="search-actions">
+        <input id="searchData" type="text" formControlName="search" placeholder="Nombre de archivo, estado u operación" />
+        <button type="submit" class="btn btn-primary">Filtrar</button>
+        <button type="button" class="btn btn-ghost" (click)="resetSearch()">Limpiar</button>
+      </div>
+    </form>
+  </section>
+
+  <section class="content-grid">
+    <article class="form-card">
+      <div class="form-card__header">
+        <h2>Importar Data General</h2>
+        <button
+          type="button"
+          class="icon-btn"
+          [attr.aria-expanded]="showReportInfo"
+          aria-label="Mostrar información del reporte a importar"
+          title="Ver plantilla y parámetros esperados"
+          (click)="openReportInfo()"
+        >
+          <mat-icon>info</mat-icon>
+        </button>
+      </div>
+      <p class="helper-text">
+        Sube el archivo principal de clientes, lotes y contratos en formato <strong>.xlsx</strong> o <strong>.csv</strong>.
+        La exportacion con plantilla se realiza ahora desde el modulo <strong>Reportes</strong>.
+      </p>
+
+      <div *ngIf="feedback" class="alert alert-success">{{ feedback }}</div>
+      <div *ngIf="error" class="alert alert-error">{{ error }}</div>
+      <div *ngIf="!loadingBrackets && !hasActiveBrackets" class="alert alert-error">
+        Debes registrar al menos un tramo activo antes de importar o previsualizar la data general.
+      </div>
+
+      <div class="upload-panel">
+        <label for="generalFile">Archivo *</label>
+        <input
+          id="generalFile"
+          type="file"
+          accept=".xlsx,.csv"
+          [disabled]="loadingBrackets || !hasActiveBrackets"
+          (change)="onFileSelected($event)"
+        />
+
+        <div class="file-summary">
+          <span>Seleccionado:</span>
+          <strong>{{ selectedFileName }}</strong>
+        </div>
+
+        <div class="tips-card">
+          <h3>Campos esperados</h3>
+          <p>Nombres, DNI, celular, correo, dirección, manzana, lote, código, precio, fecha de contrato y asesor.</p>
+        </div>
+
+        <div class="form-actions">
+          <button type="button" class="btn btn-primary" [disabled]="uploading || loadingBrackets || !hasActiveBrackets || !selectedFile" (click)="upload()">
+            {{ uploading ? 'Importando...' : 'Importar data general' }}
+          </button>
+        </div>
+      </div>
+    </article>
+
+    <article class="table-card">
+      <div class="table-card__header">
+        <div>
+          <h2>Historial de Procesos Generales</h2>
+          <p class="section-note">Genera una vista previa para revisar qué filas y datos serán registrados antes de importar.</p>
+        </div>
+
+        <div class="table-card__actions">
+          <span class="file-pill" [class.file-pill--empty]="!selectedFile">
+            {{ selectedFile ? selectedFileName : 'Selecciona un Excel para habilitar la vista previa' }}
+          </span>
+          <button type="button" class="btn btn-secondary" [disabled]="previewing || loadingBrackets || !hasActiveBrackets || !selectedFile" (click)="preview()">
+            {{ previewing ? 'Generando vista previa...' : 'Vista previa' }}
+          </button>
+        </div>
+      </div>
+
+      <section *ngIf="previewData" class="preview-panel">
+        <div class="preview-panel__header">
+          <div>
+            <h3>Vista previa del registro</h3>
+            <p>Estas son las filas detectadas en el archivo y el efecto esperado al importarlas.</p>
+          </div>
+        </div>
+
+        <div class="preview-stats">
+          <div class="stat-item stat-item--new">
+            <span class="count">{{ previewData.stats.new }}</span>
+            <span class="label">Nuevos</span>
+          </div>
+          <div class="stat-item stat-item--modified">
+            <span class="count">{{ previewData.stats.modified }}</span>
+            <span class="label">Modificados</span>
+          </div>
+          <div class="stat-item stat-item--portfolio">
+            <span class="count">{{ previewData.stats.withPortfolio }}</span>
+            <span class="label">Con cartera activa</span>
+          </div>
+          <div class="stat-item stat-item--neutral">
+            <span class="count">{{ previewData.stats.noChanges }}</span>
+            <span class="label">Sin cambios</span>
+          </div>
+        </div>
+
+        <div class="table-wrapper preview-table-wrapper" *ngIf="previewRows.length > 0">
+          <table class="preview-table">
+            <thead>
+              <tr>
+                <th>Fila</th>
+                <th>Estado</th>
+                <th>Cliente</th>
+                <th>DNI</th>
+                <th>Contrato</th>
+                <th>Lote</th>
+                <th>Estado cliente</th>
+                <th>Estado lote</th>
+                <th>Cartera activa</th>
+                <th>Cambios</th>
+                <th>Detalle</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr *ngFor="let item of previewRows; trackBy: trackByPreviewRow">
+                <td>{{ item.row ?? '-' }}</td>
+                <td>
+                  <span [class]="getPreviewStatusClass(item.status)">
+                    {{ getPreviewStatusLabel(item.status) }}
+                  </span>
+                </td>
+                <td>{{ getPreviewClientName(item) }}</td>
+                <td>{{ getPreviewClientDni(item) }}</td>
+                <td>{{ getPreviewContractCode(item) }}</td>
+                <td>{{ getPreviewLot(item) }}</td>
+                <td>{{ getPreviewClientStatus(item) }}</td>
+                <td>{{ getPreviewLotStatus(item) }}</td>
+                <td>{{ item.hasPortfolio ? 'Si' : 'No' }}</td>
+                <td>{{ getPreviewChangeCount(item) }}</td>
+                <td class="preview-detail">{{ getPreviewChangeSummary(item) }}</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      <div *ngIf="loading" class="state">Cargando historial...</div>
+      <div *ngIf="!loading && filteredImports.length === 0" class="state">No hay procesos registrados.</div>
+
+      <div class="table-wrapper" *ngIf="!loading && filteredImports.length > 0">
+        <table>
+          <thead>
+            <tr>
+              <th>Operación</th>
+              <th>Archivo</th>
+              <th>Estado</th>
+              <th>Total</th>
+              <th>Nuevos</th>
+              <th>Actualizados</th>
+              <th>Errores</th>
+              <th>Procesado</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let item of filteredImports; trackBy: trackById">
+              <td>{{ getOperationLabel(item.operation) }}</td>
+              <td>{{ item.fileName || '-' }}</td>
+              <td>{{ item.status || '-' }}</td>
+              <td>{{ item.totalRecords ?? 0 }}</td>
+              <td>{{ item.newRecords ?? 0 }}</td>
+              <td>{{ item.updatedRecords ?? 0 }}</td>
+              <td>{{ item.errorRecords ?? 0 }}</td>
+              <td>{{ item.processedAt ? (item.processedAt | date:'dd/MM/yyyy HH:mm') : '-' }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </article>
+  </section>
+</section>
+
+<app-modal
+  [isOpen]="showReportInfo"
+  [isWide]="true"
+  title="Plantilla de importación: {{ reportInfo.fileName }}"
+  description="Vista de referencia del Excel esperado para data general."
+  (onClose)="closeReportInfo()"
+>
+  <div class="report-modal">
+    <div class="report-meta">
+      <span class="report-chip">Hoja principal: {{ reportInfo.mainSheet }}</span>
+      <span class="report-chip">Fila de encabezados: {{ reportInfo.headerRow }}</span>
+      <span class="report-chip">Hojas de apoyo: {{ reportInfo.supportSheets.join(', ') }}</span>
+    </div>
+
+    <div class="excel-frame">
+      <div class="excel-scroll">
+        <table class="excel-table">
+          <thead>
+            <tr>
+              <th class="excel-corner"></th>
+              <th *ngFor="let header of reportInfo.previewHeaders; let i = index" class="excel-column-label">
+                {{ getExcelColumnLabel(i) }}
+              </th>
+            </tr>
+            <tr>
+              <th class="excel-row-label">{{ reportInfo.headerRow }}</th>
+              <th *ngFor="let header of reportInfo.previewHeaders" class="excel-header-cell">
+                {{ header }}
+              </th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let row of reportInfo.previewRows; let rowIndex = index">
+              <td class="excel-row-label">{{ reportInfo.headerRow + rowIndex + 1 }}</td>
+              <td *ngFor="let cell of row" class="excel-data-cell">{{ cell }}</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="report-notes">
+      <h4>Notas</h4>
+      <ul>
+        <li *ngFor="let note of reportInfo.notes">{{ note }}</li>
+      </ul>
+    </div>
+  </div>
+
+  <div modalFooter>
+    <button type="button" class="btn btn-primary" (click)="closeReportInfo()">Cerrar</button>
+  </div>
+</app-modal>

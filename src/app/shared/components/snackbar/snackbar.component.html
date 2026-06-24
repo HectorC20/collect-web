@@ -1,0 +1,29 @@
+@if (snackbarService.state(); as snackbar) {
+  <section
+    class="snackbar"
+    [class.snackbar--success]="snackbar.variant === 'success'"
+    [class.snackbar--error]="snackbar.variant === 'error'"
+    [class.snackbar--info]="snackbar.variant === 'info'"
+    [class.snackbar--warning]="snackbar.variant === 'warning'"
+    role="status"
+    aria-live="polite"
+    aria-atomic="true"
+  >
+    <div class="snackbar__content">
+      <div class="snackbar__icon">
+        <mat-icon>
+          {{
+            snackbar.variant === 'success' ? 'check_circle' :
+            snackbar.variant === 'error' ? 'error' :
+            snackbar.variant === 'warning' ? 'warning' :
+            'info'
+          }}
+        </mat-icon>
+      </div>
+      <div class="snackbar__message">{{ snackbar.message }}</div>
+      <button type="button" class="snackbar__close" (click)="dismiss()" aria-label="Cerrar mensaje">
+        <mat-icon>close</mat-icon>
+      </button>
+    </div>
+  </section>
+}

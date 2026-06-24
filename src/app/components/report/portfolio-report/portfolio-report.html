@@ -1,0 +1,56 @@
+<section class="report-card">
+  <header class="report-card__header">
+    <div>
+      <h2>Reporte de Carteras</h2>
+      <!-- <p>Lista a los cobradores con rol `collector` y `super_collector` y exporta la cartera con la plantilla importada.</p> -->
+    </div>
+    <div class="report-card__buttons">
+      <button type="button" class="btn btn-secondary" [disabled]="exportingPdf" (click)="exportPdf()">
+        {{ exportingPdf ? 'Exportando...' : 'Exportar PDF' }}
+      </button>
+      <button type="button" class="btn btn-primary" [disabled]="exporting" (click)="exportReport()">
+        {{ exporting ? 'Exportando...' : 'Exportar cartera' }}
+      </button>
+    </div>
+  </header>
+
+  <div class="table-summary">
+    <span>{{ reportState.portfolioTotal() }} cobrador(es) visibles en la vista previa</span>
+  </div>
+
+  <div class="table-wrapper">
+    <table class="preview-table">
+      <thead>
+        <tr>
+          <th>Cobrador</th>
+          <th>Rol</th>
+          <th>Correo</th>
+          <th>Celular</th>
+          <th>Clientes</th>
+          <th>Contratos</th>
+          <!-- <th>Acceso</th> -->
+        </tr>
+      </thead>
+      <tbody>
+        @for (row of reportState.portfolioRows(); track row.id) {
+          <tr>
+            <td>{{ row.collectorName || '-' }}</td>
+            <td>{{ row.roleName || '-' }}</td>
+            <td>{{ row.email || '-' }}</td>
+            <td>{{ row.phone || '-' }}</td>
+            <td>{{ row.clientsCount }}</td>
+            <td>{{ row.contractsCount }}</td>
+            <!-- <td>{{ row.portfolioAccessScope || '-' }}</td> -->
+          </tr>
+        } @empty {
+          <tr>
+            <td colspan="7" class="empty-state">No hay cobradores para mostrar con los filtros actuales.</td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  </div>
+
+  <div *ngIf="feedback" class="alert alert-success">{{ feedback }}</div>
+  <div *ngIf="error" class="alert alert-error">{{ error }}</div>
+</section>

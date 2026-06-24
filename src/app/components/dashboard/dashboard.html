@@ -1,0 +1,233 @@
+<section class="dashboard-page">
+  <app-page-header
+    eyebrow="Dashboard"
+    [title]="isCollectorView ? 'Dashboard de Cobranza' : 'Dashboard General'"
+    [description]="isCollectorView
+      ? 'Monitorea el estado de tu cartera asignada y tus indicadores de recuperación.'
+      : 'Visualiza la salud general de la cartera, recuperación mensual y distribución por tramos.'"
+  ></app-page-header>
+
+  <section class="panel-card filter-panel">
+    <div class="filter-grid">
+      <label class="filter-field">
+        <span>Fecha inicio</span>
+        <input type="date" [value]="startDate()" (change)="onStartDateChange($any($event.target).value)" />
+      </label>
+
+      <label class="filter-field">
+        <span>Fecha fin</span>
+        <input type="date" [value]="endDate()" (change)="onEndDateChange($any($event.target).value)" />
+      </label>
+
+      <div class="filter-actions">
+        <button type="button" class="btn btn-primary" (click)="applyDateFilter()">Aplicar filtro</button>
+        <button type="button" class="btn btn-ghost" (click)="resetDateFilter()">Ultimos 30 dias</button>
+      </div>
+
+      <div class="filter-summary" *ngIf="periodLabel">
+        <span>Periodo analizado</span>
+        <strong>{{ periodLabel }}</strong>
+      </div>
+    </div>
+  </section>
+
+  <div *ngIf="error()" class="alert alert-error">{{ error() }}</div>
+  <app-page-loader [show]="loading()" message="Cargando indicadores..."></app-page-loader>
+
+  <ng-container *ngIf="!loading() && data() as dashboard">
+    <section class="kpi-grid">
+      <article class="kpi-card kpi-primary">
+        <span class="kpi-label">Cartera Total Pendiente</span>
+        <strong>{{ portfolioTotal | number:'1.2-2' }}</strong>
+        <p>Monto pendiente total de la cartera {{ isCollectorView ? 'asignada' : 'general' }} que aun puede recuperarse con los pagos.</p>
+      </article>
+
+      <article class="kpi-card kpi-danger">
+        <span class="kpi-label">Cartera Vencida</span>
+        <strong>{{ portfolioOverdue | number:'1.2-2' }}</strong>
+        <p>Importe en mora con cuotas vencidas o pendientes fuera de fecha.</p>
+      </article>
+
+      <article class="kpi-card kpi-success">
+        <span class="kpi-label">Recaudado Acumulado</span>
+        <strong>{{ recoveredThisMonth | number:'1.2-2' }}</strong>
+        <p>Monto acumulado recaudado por pagos registrados dentro del rango de fechas seleccionado.</p>
+      </article>
+    </section>
+
+    <section class="panel-card trend-panel" *ngIf="trendCards().length > 0">
+      <header class="panel-header">
+        <div>
+          <h2>Tendencia de KPIs</h2>
+          <p>Visualiza el comportamiento diario de la cartera y sus KPIs segun el rango de fechas seleccionado.</p>
+        </div>
+        <span class="panel-chip">{{ historyPoints().length }} fecha(s)</span>
+      </header>
+
+      <div class="trend-filters">
+        <button
+          type="button"
+          class="trend-filter-btn"
+          *ngFor="let option of trendFilterOptions()"
+          [class.active]="isTrendViewMode(option.key)"
+          (click)="setTrendViewMode(option.key)"
+        >
+          {{ option.label }}
+        </button>
+      </div>
+
+      <div class="trend-grid" *ngIf="isTrendViewMode('overview'); else selectedTrendDetail">
+        <article
+          class="trend-card"
+          *ngFor="let trend of trendCards()"
+          [ngClass]="['trend-' + trend.tone, 'trend-' + trend.deltaMeaning]"
+        >
+          <div class="trend-copy">
+            <div>
+              <div class="trend-title-row">
+                <span class="trend-title">{{ trend.title }}</span>
+                <span class="info-chip trend-info-chip" tabindex="0" [attr.aria-label]="trend.formula">
+                  i
+                  <span class="tooltip-card tooltip-card-wide">
+                    <strong>{{ trend.formula }}</strong>
+                    <span>{{ trend.calculationNote }}</span>
+                    <span>En ejecución sobre el periodo {{ periodLabel || 'seleccionado' }}.</span>
+                  </span>
+                </span>
+              </div>
+              <p>{{ trend.description }}</p>
+            </div>
+
+            <div class="trend-value-stack">
+              <strong>{{ formatTrendValue(trend, trend.current) }}</strong>
+              <span class="trend-delta" [ngClass]="'delta-' + trend.deltaMeaning">
+                {{ getTrendDeltaLabel(trend) }}
+              </span>
+            </div>
+          </div>
+
+          <div class="trend-chart-wrapper">
+            <canvas baseChart
+              [data]="trend.chartConfig.data"
+              [options]="trend.chartConfig.options"
+              [type]="trend.chartConfig.type"
+            ></canvas>
+          </div>
+
+          <div class="trend-footer">
+            <span>{{ trend.startLabel }}</span>
+            <span>{{ trend.midLabel }}</span>
+            <span>{{ trend.endLabel }}</span>
+          </div>
+        </article>
+      </div>
+
+      <ng-template #selectedTrendDetail>
+        <article class="trend-card trend-card-detail" *ngIf="selectedTrendCard() as trend" [ngClass]="['trend-' + trend.tone, 'trend-' + trend.deltaMeaning]">
+          <div class="trend-copy">
+            <div>
+              <div class="trend-title-row">
+                <span class="trend-title">{{ trend.title }}</span>
+                <span class="info-chip trend-info-chip" tabindex="0" [attr.aria-label]="trend.formula">
+                  i
+                  <span class="tooltip-card tooltip-card-wide">
+                    <strong>{{ trend.formula }}</strong>
+                    <span>{{ trend.calculationNote }}</span>
+                    <span>En ejecución sobre el periodo {{ periodLabel || 'seleccionado' }}.</span>
+                  </span>
+                </span>
+              </div>
+              <p>{{ trend.description }}</p>
+            </div>
+
+            <div class="trend-value-stack">
+              <strong>{{ formatTrendValue(trend, trend.current) }}</strong>
+              <span class="trend-delta" [ngClass]="'delta-' + trend.deltaMeaning">
+                {{ getTrendDeltaLabel(trend) }}
+              </span>
+            </div>
+          </div>
+
+          <div class="trend-detail-summary">
+            <div class="trend-stat">
+              <span>Inicio</span>
+              <strong>{{ formatTrendValue(trend, trend.startValue) }}</strong>
+            </div>
+            <div class="trend-stat">
+              <span>Actual</span>
+              <strong>{{ formatTrendValue(trend, trend.current) }}</strong>
+            </div>
+            <div class="trend-stat">
+              <span>Maximo</span>
+              <strong>{{ formatTrendValue(trend, trend.maxValue) }}</strong>
+            </div>
+            <div class="trend-stat">
+              <span>Minimo</span>
+              <strong>{{ formatTrendValue(trend, trend.minValue) }}</strong>
+            </div>
+          </div>
+
+          <div class="trend-chart-wrapper trend-chart-wrapper-detail">
+            <canvas baseChart
+              [data]="trend.chartConfig.data"
+              [options]="trend.chartConfig.options"
+              [type]="trend.chartConfig.type"
+            ></canvas>
+          </div>
+
+          <div class="trend-footer">
+            <span>{{ trend.startLabel }}</span>
+            <span>{{ trend.midLabel }}</span>
+            <span>{{ trend.endLabel }}</span>
+          </div>
+
+        </article>
+      </ng-template>
+    </section>
+
+    <article class="panel-card" *ngIf="bracketEntries().length > 0; else noBrackets">
+      <header class="panel-header">
+        <div>
+          <h2>Distribución por Tramos</h2>
+          <p>Listado de los tramos existentes y su concentración al cierre de la fecha fin seleccionado.</p>
+        </div>
+        <span class="panel-chip">{{ bracketEntries().length }} tramo(s)</span>
+      </header>
+
+      <div class="brackets-list">
+        <div class="bracket-row" *ngFor="let bracket of bracketEntries()">
+          <div class="bracket-copy">
+            <div class="bracket-meta">
+              <strong>{{ bracket.name }}</strong>
+              <span>{{ bracket.range_label }}</span>
+            </div>
+            <strong>{{ bracket.count }}</strong>
+          </div>
+          <div class="bracket-bar">
+            <div class="bracket-fill" [ngStyle]="getBracketBarStyle(bracket)"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="brackets-summary">
+        <span>Clientes ubicados en tramos</span>
+        <strong>{{ totalBracketClients() }}</strong>
+      </div>
+    </article>
+
+    <ng-template #noBrackets>
+      <article class="panel-card">
+        <header class="panel-header">
+          <div>
+            <h2>Distribución por Tramos</h2>
+            <p>Este indicador no aplica para la vista actual.</p>
+          </div>
+        </header>
+
+        <div class="empty-state">
+          <p>No hay distribución por tramos disponible para este usuario.</p>
+        </div>
+      </article>
+    </ng-template>
+  </ng-container>
+</section>

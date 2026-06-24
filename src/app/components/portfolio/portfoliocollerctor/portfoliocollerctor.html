@@ -1,0 +1,407 @@
+<section class="portfolio-page">
+  <app-page-header
+    eyebrow="Cartera"
+    [title]="pageTitle"
+    [description]="pageDescription"
+  ></app-page-header>
+
+  <div class="header-stats">
+    <article>
+      <strong>{{ totalClients }}</strong>
+      <span>Clientes</span>
+    </article>
+    <article>
+      <strong>{{ totalContracts }}</strong>
+      <span>Lotes</span>
+    </article>
+  </div>
+
+  <section class="search-card collector-selector-card" *ngIf="canManageCollectors">
+    <div class="collector-selector">
+      <label for="collectorSelector">
+        <mat-icon>swap_horiz</mat-icon>
+        Seleccionar Cobrador
+      </label>
+      <select
+        id="collectorSelector"
+        class="filter-select collector-select"
+        [value]="selectedCollectorId || ''"
+        (change)="selectCollector($any($event.target).value)"
+        [disabled]="collectorsLoading"
+      >
+        <option value="">
+          {{ collectorSelectorDefaultLabel }}
+        </option>
+        <option *ngFor="let collector of collectors" [value]="collector.id">
+          👤 {{ collector.full_name }}
+        </option>
+      </select>
+      <div class="collector-status">
+        <span *ngIf="collectorsLoading" class="loading-indicator">
+          <mat-icon>hourglass_empty</mat-icon>
+          Cargando cobradores...
+        </span>
+        <span *ngIf="!collectorsLoading && collectors.length === 0" class="empty-indicator">
+          <mat-icon>warning</mat-icon>
+          No hay cobradores disponibles
+        </span>
+        <span *ngIf="!collectorsLoading && collectors.length > 0" class="success-indicator">
+          <mat-icon>check_circle</mat-icon>
+          {{ collectors.length }} cobrador(es) disponible(s)
+        </span>
+      </div>
+    </div>
+  </section>
+
+  <app-portfolio-alerts
+    [fixedAssignedUserId]="walletAlertsAssignedUserId"
+    [contextReady]="walletAlertsContextReady"
+    [contextEmptyMessage]="walletAlertsEmptyMessage"
+    [walletFilters]="walletAlertFilters"
+    (viewClient)="focusClientFromAlert($event)"
+  ></app-portfolio-alerts>
+
+  <section class="search-card">
+    <form [formGroup]="searchForm" (ngSubmit)="search()">
+      <label for="searchCollectorWallet">{{ searchLabel }}</label>
+      <div class="search-actions">
+        <input
+          id="searchCollectorWallet"
+          type="text"
+          formControlName="search"
+          placeholder="Cliente, DNI, MZ, lote o estado"
+        />
+        <select formControlName="block" class="filter-select">
+          <option value="">Todas las MZ</option>
+          <option *ngFor="let mz of availableBlocks" [value]="mz">MZ {{ mz }}</option>
+        </select>
+        <select formControlName="lot" class="filter-select" [disabled]="!searchForm.get('block')?.value">
+          <option value="">Todos los Lotes</option>
+          <option *ngFor="let lot of availableLots" [value]="lot">Lote {{ lot }}</option>
+        </select>
+        <select formControlName="clientStatus" class="filter-select">
+          <option value="">Todos los estados del cliente</option>
+          <option *ngFor="let status of availableClientStatuses" [value]="status">{{ status }}</option>
+        </select>
+        <select formControlName="lotStatus" class="filter-select">
+          <option value="">Todos los estados del lote</option>
+          <option *ngFor="let status of availableLotStatuses" [value]="status">{{ status }}</option>
+        </select>
+        <button type="submit" class="btn btn-primary">Filtrar</button>
+        <button type="button" class="btn btn-ghost" (click)="resetSearch()">Limpiar</button>
+      </div>
+    </form>
+  </section>
+
+  <div *ngIf="error" class="alert alert-error">{{ error }}</div>
+  <app-page-loader [show]="loading" [message]="loadingMessage"></app-page-loader>
+  <div *ngIf="!loading && filteredGroups.length === 0" class="state-card">{{ emptyStateMessage }}</div>
+
+  <section class="wallet-layout" *ngIf="!loading && filteredGroups.length > 0">
+    <section class="group-list">
+      <article class="group-card" *ngFor="let group of filteredGroups; trackBy: trackByBlock">
+        <header class="group-header">
+          <div>
+            <h2>MZ {{ group.block }}</h2>
+            <p>{{ group.cards.length }} lote(s)</p>
+          </div>
+        </header>
+
+        <div class="cards-grid">
+          <article
+            class="client-card"
+            *ngFor="let card of group.cards; trackBy: trackByCard"
+            [class.is-active]="isSelected(card.key)"
+            [class.is-pending-update]="card.hasPendingImportUpdates"
+          >
+            <button type="button" class="card-summary" (click)="selectCard(card.key)">
+              <div class="card-top">
+                <div>
+                  <div class="card-badges">
+                    <span class="lot-chip">{{ card.lotLabel }}</span>
+                    <span class="mz-chip">MZ {{ card.blockLabel }}</span>
+                    <span class="pending-chip" *ngIf="card.hasPendingImportUpdates">Actualizacion pendiente</span>
+                  </div>
+                  <h3>{{ card.clientName }}</h3>
+                </div>
+                <div class="summary-side">
+                  <span class="status-chip">{{ getLotStatusLabel(card) }}</span>
+                  <span class="expand-chip">{{ getClientStatusLabel(card) }}</span>
+                  <span class="expand-chip">{{ isSelected(card.key) ? 'Seleccionado' : 'Ver detalle' }}</span>
+                </div>
+              </div>
+
+              <div class="summary-grid">
+                <div class="summary-item">
+                  <span class="summary-label">DNI</span>
+                  <strong>{{ card.dni }}</strong>
+                </div>
+                <div class="summary-item" [ngStyle]="getPrimaryBracketStyle(card)">
+                  <span class="summary-label" >Tramo</span>
+                <span class="bracket-summary-chip" >{{ getPrimaryBracketName(card) }}</span>
+                </div>
+              </div>
+
+            <div class="summary-progress" *ngIf="card.installmentCount > 0">
+              <div class="progress-bar progress-bar-compact" aria-label="Progreso de cuotas en resumen">
+                <span
+                  class="progress-segment progress-paid"
+                  [style.width.%]="getInstallmentPercentage(card.paidCount, card.installmentCount)"
+                ></span>
+                <span
+                  class="progress-segment progress-overdue"
+                  [style.width.%]="getInstallmentPercentage(card.overdueCount, card.installmentCount)"
+                ></span>
+                <span
+                  class="progress-segment progress-pending"
+                  [style.width.%]="getInstallmentPercentage(getRemainingInstallments(card), card.installmentCount)"
+                ></span>
+              </div>
+              <div class="summary-progress-copy">
+                <span>P {{ card.paidCount }}</span>
+                <span>V {{ card.overdueCount }}</span>
+                <span>R {{ getRemainingInstallments(card) }}</span>
+              </div>
+            </div>
+
+              <div class="payment-line">
+                <span>{{ getPaymentSummary(card) }}</span>
+                <strong>Prox. pago: {{ card.nextDueDate ? (card.nextDueDate | date:'dd/MM/yyyy') : '-' }}</strong>
+              </div>
+
+              <div class="latest-action-line">
+                <span>Ultima accion: {{ getLatestActionLabel(card) }}</span>
+                <strong>{{ getLatestActionDate(card) }}</strong>
+              </div>
+
+              <div class="pending-update-line" *ngIf="card.hasPendingImportUpdates">
+                <span>{{ getPendingUpdatesLabel(card) }}</span>
+                <strong>Revisar cambios</strong>
+              </div>
+            </button>
+          </article>
+        </div>
+      </article>
+    </section>
+
+    <aside class="detail-panel" *ngIf="selectedCard as activeCard; else emptyDetail">
+      <header class="detail-header">
+        <div>
+          <span class="detail-kicker">Cliente seleccionado</span>
+          <h2>{{ activeCard.clientName }}</h2>
+          <p>DNI: {{ activeCard.dni }}</p>
+        </div>
+        <div class="summary-side">
+          <span class="expand-chip">{{ getCurrentBracketModeLabel(activeCard) }}</span>
+          <span class="status-chip">{{ getLotStatusLabel(activeCard) }}</span>
+          <span class="expand-chip">{{ getClientStatusLabel(activeCard) }}</span>
+        </div>
+      </header>
+
+      <div class="detail-scroll">
+        <div class="card-section">
+          <button
+            type="button"
+            class="btn btn-primary action-btn action-btn-primary"
+            (click)="goToClientDetail(activeCard)"
+          >
+            Ver detalle completo
+          </button>
+          <div class="section-label">Resumen actual</div>
+          <div class="pending-detail-banner" *ngIf="activeCard.hasPendingImportUpdates">
+            <strong>{{ getPendingUpdatesLabel(activeCard) }}</strong>
+            <span>Este cliente tiene cambios importados pendientes de aprobacion.</span>
+          </div>
+          <div class="info-grid">
+            <div class="info-item">
+              <span class="info-key">Manzana</span>
+              <strong>{{ activeCard.blockLabel }}</strong>
+            </div>
+            <div class="info-item">
+              <span class="info-key">Lote</span>
+              <strong>{{ activeCard.lotLabel }}</strong>
+            </div>
+            <div class="info-item">
+              <span class="info-key">Tramo actual</span>
+              <strong>{{ getPrimaryBracketName(activeCard) }}</strong>
+            </div>
+            <div class="info-item">
+              <span class="info-key">Modo de tramo</span>
+              <strong>{{ getCurrentBracketModeLabel(activeCard) }}</strong>
+            </div>
+            <div class="info-item">
+              <span class="info-key">Prox. pago</span>
+              <strong>{{ activeCard.nextDueDate ? (activeCard.nextDueDate | date:'dd/MM/yyyy') : '-' }}</strong>
+            </div>
+            <div class="info-item">
+              <span class="info-key">Ultima accion</span>
+              <strong>{{ getLatestActionLabel(activeCard) }}</strong>
+            </div>
+          </div>
+        </div>
+
+        <div class="card-section">
+          <div class="section-label">Cobranza</div>
+          <div class="progress-card">
+            <div class="progress-header">
+              <span>{{ activeCard.installmentCount }} cuota(s)</span>
+              <strong>{{ getPaymentSummary(activeCard) }}</strong>
+            </div>
+            <div class="progress-bar" aria-label="Progreso de cuotas">
+              <span
+                class="progress-segment progress-paid"
+                [style.width.%]="getInstallmentPercentage(activeCard.paidCount, activeCard.installmentCount)"
+              ></span>
+              <span
+                class="progress-segment progress-overdue"
+                [style.width.%]="getInstallmentPercentage(activeCard.overdueCount, activeCard.installmentCount)"
+              ></span>
+              <span
+                class="progress-segment progress-pending"
+                [style.width.%]="getInstallmentPercentage(getRemainingInstallments(activeCard), activeCard.installmentCount)"
+              ></span>
+            </div>
+            <div class="progress-legend">
+              <span><i class="legend-dot legend-paid"></i>Pagadas: {{ activeCard.paidCount }}</span>
+              <span><i class="legend-dot legend-overdue"></i>Vencidas: {{ activeCard.overdueCount }}</span>
+              <span><i class="legend-dot legend-pending"></i>Restantes: {{ getRemainingInstallments(activeCard) }}</span>
+            </div>
+            <div class="card-metrics card-metrics--compact">
+              <article>
+                <span>Total</span>
+                <strong>{{ activeCard.totalAmount ?? 0 | number:'1.2-2' }}</strong>
+              </article>
+              <article>
+                <span>Pendiente</span>
+                <strong>{{ activeCard.pendingAmount | number:'1.2-2' }}</strong>
+              </article>
+              <article>
+                <span>Pagado</span>
+                <strong>{{ activeCard.paidAmount | number:'1.2-2' }}</strong>
+              </article>
+            </div>
+          </div>
+        </div>
+
+        <div class="card-section">
+          <div class="section-header">
+            <div class="section-label">Datos del Cliente</div>
+            <div class="section-actions">
+              <button
+                type="button"
+                class="btn btn-icon btn-unassign"
+                [disabled]="!canUnassignSelectedClient"
+                (click)="unassignClient()"
+                [title]="unassignButtonTitle"
+              >
+                <mat-icon>link_off</mat-icon>
+                <span>{{ unassignButtonLabel }}</span>
+              </button>
+            </div>
+          </div>
+          <div class="form-feedback" *ngIf="clientFeedback">{{ clientFeedback }}</div>
+
+          <div class="bracket-editor" *ngIf="canManageBracketMode">
+            <div class="bracket-editor__header">
+              <div>
+                <div class="section-label">Definición de tramo</div>
+                <p>Supervisa si el tramo del cliente se calcula automáticamente o si se fija manualmente.</p>
+              </div>
+            </div>
+            <div class="inline-form-grid">
+              <div class="form-field">
+                <label for="clientBracketMode">Modo</label>
+                <select
+                  id="clientBracketMode"
+                  [value]="selectedBracketMode"
+                  (change)="selectedBracketMode = $any($event.target).value"
+                >
+                  <option value="automatic">Automático</option>
+                  <option value="manual">Manual</option>
+                </select>
+              </div>
+
+              <div class="form-field" *ngIf="selectedBracketMode === 'manual'">
+                <label for="clientManualBracket">Tramo manual</label>
+                <select
+                  id="clientManualBracket"
+                  [value]="selectedManualBracketId || ''"
+                  (change)="selectedManualBracketId = $any($event.target).value || null"
+                >
+                  <option value="">Selecciona un tramo</option>
+                  <option *ngFor="let bracket of brackets" [value]="bracket.id">{{ bracket.name }}</option>
+                </select>
+              </div>
+            </div>
+            <div class="form-actions">
+              <button
+                type="button"
+                class="btn btn-primary"
+                [disabled]="bracketModeSaving || bracketsLoading"
+                (click)="saveSelectedBracketMode()"
+              >
+                {{ bracketModeSaving ? 'Guardando...' : 'Aplicar tramo' }}
+              </button>
+            </div>
+          </div>
+
+          <div class="contact-actions">
+            <a
+              *ngIf="getWhatsappUrl(activeCard) as whatsappUrl"
+              class="contact-action contact-action-whatsapp"
+              [href]="whatsappUrl"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              <mat-icon>chat</mat-icon>
+              <span>WhatsApp</span>
+            </a>
+            <a
+              *ngIf="getMailUrl(activeCard) as mailUrl"
+              class="contact-action contact-action-mail"
+              [href]="mailUrl"
+            >
+              <mat-icon>mail</mat-icon>
+              <span>Correo</span>
+            </a>
+            <span class="contact-empty" *ngIf="!selectedClientHasPhone && !selectedClientHasEmail">
+              No hay canales de contacto disponibles.
+            </span>
+          </div>
+          <div class="info-grid">
+            <div class="info-item">
+              <span class="info-key">Telefono</span>
+              <strong>{{ activeCard.phone }}</strong>
+            </div>
+            <div class="info-item">
+              <span class="info-key">Correo</span>
+              <strong>{{ activeCard.email }}</strong>
+            </div>
+            <div class="info-item info-item-wide">
+              <span class="info-key">Direccion</span>
+              <strong>{{ activeCard.address }}</strong>
+            </div>
+            <div class="info-item">
+              <span class="info-key">Distrito</span>
+              <strong>{{ activeCard.district }}</strong>
+            </div>
+            <div class="info-item">
+              <span class="info-key">Provincia</span>
+              <strong>{{ activeCard.province }}</strong>
+            </div>
+            <div class="info-item">
+              <span class="info-key">Departamento</span>
+              <strong>{{ activeCard.department }}</strong>
+            </div>
+          </div>
+        </div>
+      </div>
+    </aside>
+  </section>
+
+  <ng-template #emptyDetail>
+    <aside class="detail-panel detail-panel-empty">
+      <div class="state-card">Selecciona un cliente para ver su informacion.</div>
+    </aside>
+  </ng-template>
+</section>

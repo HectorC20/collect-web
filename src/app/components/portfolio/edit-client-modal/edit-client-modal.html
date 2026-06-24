@@ -1,0 +1,76 @@
+<app-modal
+  [isOpen]="isOpen"
+  [isWide]="true"
+  title="Editar información del cliente"
+  description="Actualiza los datos principales y la ubicación del cliente desde un solo formulario."
+  (onClose)="cancel()"
+>
+  <form id="editClientForm" [formGroup]="clientForm" (ngSubmit)="save()" class="edit-form">
+    <section class="form-section">
+      <div class="section-title">Datos personales</div>
+      <div class="form-grid">
+        <div class="form-field form-field--full">
+          <label for="editClientName">Nombres y apellidos *</label>
+          <input id="editClientName" type="text" formControlName="full_name" />
+          <div class="field-error" *ngIf="clientForm.get('full_name')?.touched && clientForm.get('full_name')?.invalid">
+            El nombre es requerido.
+          </div>
+        </div>
+
+        <div class="form-field">
+          <label for="editClientDni">DNI</label>
+          <input id="editClientDni" type="text" formControlName="dni" />
+        </div>
+
+        <div class="form-field">
+          <label for="editClientPhone">Teléfono</label>
+          <input id="editClientPhone" type="text" formControlName="phone" />
+        </div>
+
+        <div class="form-field form-field--full">
+          <label for="editClientEmail">Correo electrónico</label>
+          <input id="editClientEmail" type="email" formControlName="email" />
+          <div class="field-error" *ngIf="clientForm.get('email')?.touched && clientForm.get('email')?.invalid">
+            El correo ingresado no es válido.
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="form-section">
+      <div class="section-title">Ubicación</div>
+      <div class="form-grid">
+        <div class="form-field form-field--full">
+          <label for="editClientAddress">Dirección</label>
+          <input id="editClientAddress" type="text" formControlName="address" />
+        </div>
+
+        <div class="form-field">
+          <label for="editClientDistrict">Distrito</label>
+          <input id="editClientDistrict" type="text" formControlName="district" />
+        </div>
+
+        <div class="form-field">
+          <label for="editClientProvince">Provincia</label>
+          <input id="editClientProvince" type="text" formControlName="province" />
+        </div>
+
+        <div class="form-field form-field--full">
+          <label for="editClientDepartment">Departamento</label>
+          <input id="editClientDepartment" type="text" formControlName="department" />
+        </div>
+      </div>
+    </section>
+
+    <div class="form-feedback" *ngIf="feedback">{{ feedback }}</div>
+    <div class="form-error" *ngIf="error">{{ error }}</div>
+
+  </form>
+
+  <div modalFooter class="modal-footer-actions">
+    <button type="button" class="btn btn-ghost" (click)="cancel()">Cancelar</button>
+    <button type="submit" class="btn btn-primary" form="editClientForm" [disabled]="saving">
+      {{ saving ? 'Guardando...' : 'Guardar cambios' }}
+    </button>
+  </div>
+</app-modal>

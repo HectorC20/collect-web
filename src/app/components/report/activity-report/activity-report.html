@@ -1,0 +1,62 @@
+<section class="report-card">
+  <header class="report-card__header">
+    <div>
+      <h2>Reporte de Actividad Reciente</h2>
+      <p>Exporta acciones registradas recientemente y muestra una tabla previa de movimientos antes de generar el archivo.</p>
+    </div>
+    <div class="report-card__buttons">
+      <button type="button" class="btn btn-secondary" [disabled]="exportingPdf" (click)="exportPdf()">
+        {{ exportingPdf ? 'Exportando...' : 'Exportar PDF' }}
+      </button>
+      <button type="button" class="btn btn-primary" [disabled]="exporting" (click)="exportReport()">
+        {{ exporting ? 'Exportando...' : 'Exportar actividad' }}
+      </button>
+    </div>
+  </header>
+
+  <div class="table-summary">
+    <span>{{ reportState.activityTotal() }} accion(es) visibles en la vista previa</span>
+  </div>
+
+  <div class="table-wrapper">
+    <table class="preview-table">
+      <thead>
+        <tr>
+          <th>Fecha</th>
+          <th>Accion</th>
+          <th>Cliente</th>
+          <th>DNI</th>
+          <th>Lote</th>
+          <th>Estado Cliente</th>
+          <th>Estado Lote</th>
+          <th>Cobrador</th>
+          <th>Registrado por</th>
+          <th>Observacion</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (row of reportState.activityRows(); track row.id) {
+          <tr>
+            <td>{{ row.actionDate ? (row.actionDate | date:'dd/MM/yyyy HH:mm') : '-' }}</td>
+            <td>{{ row.actionName || '-' }}</td>
+            <td>{{ row.clientName || '-' }}</td>
+            <td>{{ row.dni || '-' }}</td>
+            <td>{{ row.lot || '-' }}</td>
+            <td>{{ row.clientStatus || '-' }}</td>
+            <td>{{ row.lotStatus || '-' }}</td>
+            <td>{{ row.collectorName || '-' }}</td>
+            <td>{{ row.registeredBy || '-' }}</td>
+            <td>{{ row.observation || '-' }}</td>
+          </tr>
+        } @empty {
+          <tr>
+            <td colspan="10" class="empty-state">No hay actividad reciente para mostrar con los filtros actuales.</td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  </div>
+
+  <div *ngIf="feedback" class="alert alert-success">{{ feedback }}</div>
+  <div *ngIf="error" class="alert alert-error">{{ error }}</div>
+</section>

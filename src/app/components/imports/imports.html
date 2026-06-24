@@ -1,0 +1,24 @@
+<section class="imports-container">
+  <app-page-header
+    eyebrow="Importaciones"
+    title="Centro de Importar y Exportar"
+    description="Gestiona procesos de carga y generación de reportes para data general y cartera."
+  ></app-page-header>
+
+  <section class="imports-nav">
+    <a
+      *ngFor="let section of visibleSections"
+      class="nav-card"
+      [routerLink]="section.route"
+      routerLinkActive="active"
+    >
+      <span class="nav-badge">{{ section.badge }}</span>
+      <h2>{{ section.title }}</h2>
+      <p>{{ section.description }}</p>
+    </a>
+  </section>
+
+  <section class="imports-content">
+    <router-outlet></router-outlet>
+  </section>
+</section>
